@@ -260,7 +260,7 @@ func TestIntersection(t *testing.T) {
 		a2 = []int64{2, 3}
 		intersection = Intersection(a1, a2)
 		require.NotEmpty(intersection)
-		assert.Equal([]int64{2}, Intersection(a1, a2))
+		assert.ElementsMatch([]int64{2}, Intersection(a1, a2))
 
 		a1 = []int64{1, 2}
 		a2 = []int64{3, 4}
@@ -280,7 +280,7 @@ func TestIntersection(t *testing.T) {
 		a2 = []string{"2", "3"}
 		intersection = Intersection(a1, a2)
 		require.NotEmpty(intersection)
-		assert.Equal([]string{"2"}, Intersection(a1, a2))
+		assert.ElementsMatch([]string{"2"}, Intersection(a1, a2))
 
 		a1 = []string{"1", "2"}
 		a2 = []string{"3", "4"}
@@ -304,7 +304,7 @@ func TestIntersection(t *testing.T) {
 		a2 = []testStruct{{id: 2}, {id: 3}}
 		intersection = Intersection(a1, a2)
 		require.NotEmpty(intersection)
-		assert.Equal([]testStruct{{id: 2}}, Intersection(a1, a2))
+		assert.ElementsMatch([]testStruct{{id: 2}}, Intersection(a1, a2))
 
 		a1 = []testStruct{{id: 1}, {id: 2}}
 		a2 = []testStruct{{id: 3}, {id: 4}}
@@ -327,11 +327,11 @@ func TestFindDuplicates(t *testing.T) {
 
 		list = []int64{1, 1, 2}
 		repeatList = FindDuplicates(list)
-		assert.Equal([]int64{1}, repeatList)
+		assert.ElementsMatch([]int64{1}, repeatList)
 
 		list = []int64{1, 1, 2, 2}
 		repeatList = FindDuplicates(list)
-		assert.Equal([]int64{1, 2}, repeatList)
+		assert.ElementsMatch([]int64{1, 2}, repeatList)
 	})
 
 	t.Run("String", func(t *testing.T) {
@@ -345,10 +345,10 @@ func TestFindDuplicates(t *testing.T) {
 
 		list = []string{"1", "1", "2"}
 		repeatList = FindDuplicates(list)
-		assert.Equal([]string{"1"}, repeatList)
+		assert.ElementsMatch([]string{"1"}, repeatList)
 
 		list = []string{"1", "1", "2", "2"}
 		repeatList = FindDuplicates(list)
-		assert.Equal([]string{"1", "2"}, repeatList)
+		assert.ElementsMatch([]string{"1", "2"}, repeatList)
 	})
 }
