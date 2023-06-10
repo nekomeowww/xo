@@ -2,7 +2,6 @@ package channelx
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -17,24 +16,11 @@ func TestPuller(t *testing.T) {
 	t.Run("WithoutHandler", func(t *testing.T) {
 		t.Parallel()
 
-		itemChan := make(chan int, 10)
+		itemChan := make(chan int)
 		defer close(itemChan)
 
 		puller := New(itemChan)
-
 		puller.StartPull(context.Background())
-
-		wg := conc.NewWaitGroup()
-		for i := 0; i < 10; i++ {
-			input := i
-
-			wg.Go(func() {
-				itemChan <- input
-			})
-		}
-		wg.Wait()
-
-		time.Sleep(time.Second * 2)
 
 		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
@@ -46,73 +32,32 @@ func TestPuller(t *testing.T) {
 		itemChan := make(chan int)
 		defer close(itemChan)
 
+		wg := conc.NewWaitGroup()
+		wg.Go(func() {
+			for i := 0; i < 10; i++ {
+				input := i
+				itemChan <- input
+			}
+		})
+
 		handledItems := make([]int, 0)
+		handlerFunc := func(item int) {
+			time.Sleep(time.Millisecond * 100)
+			handledItems = append(handledItems, item)
+		}
 
-		puller := New(itemChan).
-			WithHandler(func(item int) {
-				handledItems = append(handledItems, item)
-			})
-
+		puller := New(itemChan).WithHandler(handlerFunc)
 		puller.StartPull(context.Background())
 
-		wg := conc.NewWaitGroup()
-		for i := 0; i < 10; i++ {
-			input := i
-
-			wg.Go(func() {
-				itemChan <- input
-			})
-		}
+		// wait for all items to be sent to itemChan. (which is picked by puller)
 		wg.Wait()
-
-		time.Sleep(time.Second * 2)
+		// wait for the last item to be handled.
+		time.Sleep(time.Millisecond*100 + time.Millisecond)
 
 		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, 10, len(handledItems))
-		assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, handledItems)
-	})
-
-	t.Run("WithHandleAsynchronouslyMaxGoroutine", func(t *testing.T) {
-		t.Parallel()
-
-		itemChan := make(chan int)
-		defer close(itemChan)
-
-		handledItems := make([]int, 0)
-		var handledItemsMutex sync.Mutex
-
-		puller := New(itemChan).
-			WithHandler(func(item int) {
-				handledItemsMutex.Lock()
-				defer handledItemsMutex.Unlock()
-
-				handledItems = append(handledItems, item)
-			}).
-			WithHandleAsynchronouslyMaxGoroutine(10)
-
-		puller.StartPull(context.Background())
-
-		wg := conc.NewWaitGroup()
-		for i := 0; i < 10; i++ {
-			input := i
-
-			wg.Go(func() {
-				itemChan <- input
-			})
-		}
-		wg.Wait()
-
-		time.Sleep(time.Second * 2)
-
-		err := puller.StopPull(context.Background())
-		require.NoError(t, err)
-
-		handledItemsMutex.Lock()
-		defer handledItemsMutex.Unlock()
-
-		assert.Equal(t, 10, len(handledItems))
+		assert.Len(t, handledItems, 10)
 		assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, handledItems)
 	})
 
@@ -122,76 +67,157 @@ func TestPuller(t *testing.T) {
 		itemChan := make(chan int)
 		defer close(itemChan)
 
-		handledItems := make([]int, 0)
-		var handledItemsMutex sync.Mutex
+		wg := conc.NewWaitGroup()
+		wg.Go(func() {
+			for i := 0; i < 10; i++ {
+				input := i
+				itemChan <- input
+			}
+		})
+
+		handledItems := make([]int, 10)
+		handlerFunc := func(item int) {
+			time.Sleep(time.Millisecond * 100)
+			handledItems[item] = item
+		}
 
 		puller := New(itemChan).
-			WithHandler(func(item int) {
-				handledItemsMutex.Lock()
-				defer handledItemsMutex.Unlock()
-
-				handledItems = append(handledItems, item)
-			}).
+			WithHandler(handlerFunc).
 			WithHandleAsynchronously()
 
 		puller.StartPull(context.Background())
 
-		wg := conc.NewWaitGroup()
-		for i := 0; i < 10; i++ {
-			input := i
-
-			wg.Go(func() {
-				itemChan <- input
-			})
-		}
+		// wait for all items to be sent to itemChan. (which is picked by puller)
 		wg.Wait()
-
-		time.Sleep(time.Second * 2)
+		// wait for the last item to be handled.
+		time.Sleep(time.Millisecond*100 + time.Millisecond)
 
 		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
 
-		handledItemsMutex.Lock()
-		defer handledItemsMutex.Unlock()
-
-		assert.Equal(t, 10, len(handledItems))
+		assert.Len(t, handledItems, 10)
 		assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, handledItems)
 	})
 
-	t.Run("StopPullDoubleCalled", func(t *testing.T) {
+	t.Run("WithHandleAsynchronouslyMaxGoroutine", func(t *testing.T) {
 		t.Parallel()
 
 		itemChan := make(chan int)
 		defer close(itemChan)
 
-		handledItems := make([]int, 0)
+		wg := conc.NewWaitGroup()
+		wg.Go(func() {
+			for i := 0; i < 10; i++ {
+				input := i
+				itemChan <- input
+			}
+		})
+
+		handledItems := make([]int, 10)
+		handlerFunc := func(item int) {
+			time.Sleep(time.Millisecond * 100)
+			handledItems[item] = item
+		}
 
 		puller := New(itemChan).
-			WithHandler(func(item int) {
-				handledItems = append(handledItems, item)
-			})
+			WithHandler(handlerFunc).
+			WithHandleAsynchronouslyMaxGoroutine(5)
 
+		now := time.Now()
 		puller.StartPull(context.Background())
 
-		wg := conc.NewWaitGroup()
-		for i := 0; i < 10; i++ {
-			input := i
-
-			wg.Go(func() {
-				itemChan <- input
-			})
-		}
+		// wait for all items to be sent to itemChan. (which is picked by puller)
 		wg.Wait()
+		// wait for the last item to be handled.
+		time.Sleep(time.Millisecond*100 + time.Millisecond)
 
-		time.Sleep(time.Second * 2)
+		elapsed := time.Since(now)
+		assert.True(t, elapsed > time.Millisecond*100*2)
 
 		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
 
-		err = puller.StopPull(context.Background())
+		assert.Equal(t, 10, len(handledItems))
+		assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, handledItems)
+	})
+
+	t.Run("StartPullCalledTwice", func(t *testing.T) {
+		t.Parallel()
+
+		itemChan := make(chan int)
+		defer close(itemChan)
+
+		wg := conc.NewWaitGroup()
+		wg.Go(func() {
+			for i := 0; i < 10; i++ {
+				input := i
+				itemChan <- input
+			}
+		})
+
+		handledItems := make([]int, 10)
+		handleFunc := func(item int) {
+			time.Sleep(time.Millisecond * 100)
+			handledItems[item] = item
+		}
+
+		puller := New(itemChan).
+			WithHandler(handleFunc).
+			WithHandleAsynchronously()
+
+		puller.StartPull(context.Background())
+		puller.StartPull(context.Background()) // should be ignored
+
+		// wait for all items to be sent to itemChan. (which is picked by puller)
+		wg.Wait()
+		// wait for the last item to be handled.
+		time.Sleep(time.Millisecond*100 + time.Millisecond)
+
+		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, 10, len(handledItems))
+		assert.Len(t, handledItems, 10)
+		assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, handledItems)
+	})
+
+	t.Run("StopPullCalledTwice", func(t *testing.T) {
+		t.Parallel()
+
+		itemChan := make(chan int)
+		defer close(itemChan)
+
+		wg := conc.NewWaitGroup()
+		wg.Go(func() {
+			for i := 0; i < 10; i++ {
+				input := i
+				itemChan <- input
+			}
+		})
+
+		handledItems := make([]int, 10)
+		handleFunc := func(item int) {
+			time.Sleep(time.Millisecond * 100)
+			handledItems[item] = item
+		}
+
+		puller := New(itemChan).
+			WithHandler(handleFunc).
+			WithHandleAsynchronously()
+
+		puller.StartPull(context.Background())
+
+		// wait for all items to be sent to itemChan. (which is picked by puller)
+		wg.Wait()
+		// wait for the last item to be handled.
+		time.Sleep(time.Millisecond*100 + time.Millisecond)
+
+		err := puller.StopPull(context.Background())
+		require.NoError(t, err)
+
+		err = puller.StopPull(context.Background()) // should be ignored
+		require.NoError(t, err)
+
+		assert.Len(t, handledItems, 10)
 		assert.ElementsMatch(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, handledItems)
 	})
 
@@ -210,8 +236,6 @@ func TestPuller(t *testing.T) {
 		puller.StartPull(context.Background())
 		puller.contextCancelFunc = nil
 		close(itemChan)
-
-		time.Sleep(time.Second * 2)
 
 		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
