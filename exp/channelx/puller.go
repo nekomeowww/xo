@@ -2,46 +2,37 @@ package channelx
 
 import (
 	"context"
-	"sync"
 
 	"github.com/nekomeowww/fo"
 	"github.com/sourcegraph/conc/panics"
 	"github.com/sourcegraph/conc/pool"
 )
 
-// Puller is a generic long-running puller to pull items from a channel.
-type Puller[T any] struct {
-	rwMutex sync.RWMutex
+type PullerCommonOptions[T any, P Puller[T]] struct {
+	puller *P
 
 	updateChan                 <-chan T
 	updateHandlerFunc          func(item T) (shouldContinue, shouldReturn bool)
 	updateHandleAsynchronously bool
 	updateHandlePool           *pool.Pool
 	panicHandlerFunc           func(panicValue *panics.Recovered)
-
-	alreadyStarted    bool
-	alreadyClosed     bool
-	contextCancelFunc context.CancelFunc
 }
 
-// New creates a new long-running puller to pull items from fromChannel.
-func NewPuller[T any](fromChannel <-chan T) *Puller[T] {
-	return &Puller[T]{
-		updateChan: fromChannel,
-	}
+// WithChannel assigns channel to pull items from.
+func (o *PullerCommonOptions[T, P]) WithChannel(updateChan <-chan T) *P {
+	o.updateChan = updateChan
+
+	return o.puller
 }
 
 // WithHandler assigns handler to handle the items pulled from the channel.
-func (c *Puller[T]) WithHandler(handler func(item T)) *Puller[T] {
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
-
-	c.updateHandlerFunc = func(item T) (bool, bool) {
+func (o *PullerCommonOptions[T, P]) WithHandler(handler func(item T)) *P {
+	o.updateHandlerFunc = func(item T) (bool, bool) {
 		handler(item)
 		return false, false
 	}
 
-	return c
+	return o.puller
 }
 
 // WithHandlerWithShouldContinue assigns handler to handle the items pulled from the channel but
@@ -50,15 +41,12 @@ func (c *Puller[T]) WithHandler(handler func(item T)) *Puller[T] {
 //
 // NOTICE: If the puller has been set to handle the items asynchronously, therefore the
 // shouldContinue boolean value that the handler returns will be ignored.
-func (c *Puller[T]) WithHandlerWithShouldContinue(handler func(item T) bool) *Puller[T] {
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
-
-	c.updateHandlerFunc = func(item T) (bool, bool) {
+func (o *PullerCommonOptions[T, P]) WithHandlerWithShouldContinue(handler func(item T) bool) *P {
+	o.updateHandlerFunc = func(item T) (bool, bool) {
 		return handler(item), false
 	}
 
-	return c
+	return o.puller
 }
 
 // WithHandlerWithShouldReturn assigns handler to handle the items pulled from the channel but
@@ -66,15 +54,12 @@ func (c *Puller[T]) WithHandlerWithShouldContinue(handler func(item T) bool) *Pu
 //
 // NOTICE: If the puller has been set to handle the items asynchronously, therefore the
 // shouldReturn boolean value that the handler returns will be ignored.
-func (c *Puller[T]) WithHandlerWithShouldReturn(handler func(item T) bool) *Puller[T] {
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
-
-	c.updateHandlerFunc = func(item T) (bool, bool) {
+func (o *PullerCommonOptions[T, P]) WithHandlerWithShouldReturn(handler func(item T) bool) *P {
+	o.updateHandlerFunc = func(item T) (bool, bool) {
 		return false, handler(item)
 	}
 
-	return c
+	return o.puller
 }
 
 // WithHandlerWithShouldContinueAndShouldReturn assigns handler to handle the items pulled from the channel but
@@ -83,62 +68,66 @@ func (c *Puller[T]) WithHandlerWithShouldReturn(handler func(item T) bool) *Pull
 //
 // NOTICE: If the puller has been set to handle the items asynchronously, therefore the
 // shouldContinue and shouldReturn boolean values that the handler returns will be ignored.
-func (c *Puller[T]) WithHandlerWithShouldContinueAndShouldReturn(handler func(item T) (shouldBreak, shouldContinue bool)) *Puller[T] {
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
+func (o *PullerCommonOptions[T, P]) WithHandlerWithShouldContinueAndShouldReturn(handler func(item T) (shouldBreak, shouldContinue bool)) *P {
+	o.updateHandlerFunc = handler
 
-	c.updateHandlerFunc = handler
-
-	return c
+	return o.puller
 }
 
 // WithHandleAsynchronously makes the handler to be handled asynchronously.
-func (c *Puller[T]) WithHandleAsynchronously() *Puller[T] {
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
+func (o *PullerCommonOptions[T, P]) WithHandleAsynchronously() *P {
+	o.updateHandleAsynchronously = true
 
-	c.updateHandleAsynchronously = true
-
-	return c
+	return o.puller
 }
 
 // WithHandleAsynchronouslyMaxGoroutine makes the handler to be handled asynchronously with a worker pool that
 // the size of the pool set to maxGoroutine. This is useful when you want to limit the number of goroutines
 // that handle the items to prevent the goroutines from consuming too much memory when lots of items are pumped
 // to the channel (or request).
-func (c *Puller[T]) WithHandleAsynchronouslyMaxGoroutine(maxGoroutine int) *Puller[T] {
-	c.WithHandleAsynchronously()
+func (o *PullerCommonOptions[T, P]) WithHandleAsynchronouslyMaxGoroutine(maxGoroutine int) *P {
+	o.WithHandleAsynchronously()
 
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
-	c.updateHandlePool = pool.New().WithMaxGoroutines(maxGoroutine)
+	o.updateHandlePool = pool.New().WithMaxGoroutines(maxGoroutine)
 
-	return c
+	return o.puller
 }
 
-func (c *Puller[T]) WithPanicHandler(handlerFunc func(panicValue *panics.Recovered)) *Puller[T] {
-	c.rwMutex.Lock()
-	defer c.rwMutex.Unlock()
+// WithPanicHandler assigns panic handler to handle the panic that the handlerFunc panics.
+func (o *PullerCommonOptions[T, P]) WithPanicHandler(handlerFunc func(panicValue *panics.Recovered)) *P {
+	o.panicHandlerFunc = handlerFunc
 
-	c.panicHandlerFunc = handlerFunc
+	return o.puller
+}
 
-	return c
+// Puller is a generic long-running puller to pull items from a channel.
+type Puller[T any] struct {
+	*PullerCommonOptions[T, Puller[T]]
+
+	alreadyStarted    bool
+	alreadyClosed     bool
+	contextCancelFunc context.CancelFunc
+}
+
+// New creates a new long-running puller to pull items.
+func NewPuller[T any]() *Puller[T] {
+	puller := new(Puller[T])
+	puller.PullerCommonOptions = &PullerCommonOptions[T, Puller[T]]{puller: puller}
+
+	return puller
 }
 
 // StartPull starts pulling items from the channel. You may pass a context to signal the puller to stop pulling
 // items from the channel.
-func (c *Puller[T]) StartPull(ctx context.Context) {
-	c.rwMutex.RLock()
-	defer c.rwMutex.RUnlock()
-
+func (c *Puller[T]) StartPull(ctx context.Context) *Puller[T] {
 	if c.alreadyStarted {
-		return
+		return c
 	}
 
 	c.alreadyStarted = true
-	if c.updateChan == nil || c.updateHandlerFunc == nil {
+	if c.updateChan == nil {
 		c.contextCancelFunc = func() {}
-		return
+		return c
 	}
 
 	c.contextCancelFunc = run(
@@ -149,14 +138,13 @@ func (c *Puller[T]) StartPull(ctx context.Context) {
 		c.updateHandlerFunc,
 		c.panicHandlerFunc,
 	)
+
+	return c
 }
 
 // StopPull stops pulling items from the channel. You may pass a context to restrict the deadline or
 // call timeout to the action to stop the puller.
 func (c *Puller[T]) StopPull(ctx context.Context) error {
-	c.rwMutex.RLock()
-	defer c.rwMutex.RUnlock()
-
 	if c.alreadyClosed {
 		return nil
 	}
@@ -180,6 +168,10 @@ func runHandle[T any](
 	handlerFunc func(item T) (shouldContinue, shouldReturn bool),
 	panicHandlerFunc func(panicValue *panics.Recovered),
 ) (bool, bool) {
+	if handlerFunc == nil {
+		return false, false
+	}
+
 	if updateHandleAsynchronously {
 		runInGoroutine := func() {
 			var pc panics.Catcher
@@ -220,7 +212,7 @@ func run[T any](
 		for {
 			select {
 			case <-ctx.Done():
-				break
+				return
 			case item, ok := <-channel:
 				if !ok {
 					break

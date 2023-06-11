@@ -21,7 +21,7 @@ func TestPuller(t *testing.T) {
 		itemChan := make(chan int)
 		defer close(itemChan)
 
-		puller := NewPuller(itemChan)
+		puller := NewPuller[int]().WithChannel(itemChan)
 		puller.StartPull(context.Background())
 
 		err := puller.StopPull(context.Background())
@@ -48,7 +48,9 @@ func TestPuller(t *testing.T) {
 			handledItems = append(handledItems, item)
 		}
 
-		puller := NewPuller(itemChan).WithHandler(handlerFunc)
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
+			WithHandler(handlerFunc)
 		puller.StartPull(context.Background())
 
 		// wait for all items to be sent to itemChan. (which is picked by puller)
@@ -84,7 +86,9 @@ func TestPuller(t *testing.T) {
 			return item == 4
 		}
 
-		puller := NewPuller(itemChan).WithHandlerWithShouldReturn(handlerFunc)
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
+			WithHandlerWithShouldReturn(handlerFunc)
 		puller.StartPull(context.Background())
 
 		// wait for all items to be sent to itemChan. (which is picked by puller)
@@ -124,7 +128,9 @@ func TestPuller(t *testing.T) {
 			return false
 		}
 
-		puller := NewPuller(itemChan).WithHandlerWithShouldContinue(handlerFunc)
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
+			WithHandlerWithShouldContinue(handlerFunc)
 		puller.StartPull(context.Background())
 
 		// wait for all items to be sent to itemChan. (which is picked by puller)
@@ -165,7 +171,9 @@ func TestPuller(t *testing.T) {
 			return false, item == 7 // stop at 7
 		}
 
-		puller := NewPuller(itemChan).WithHandlerWithShouldContinueAndShouldReturn(handlerFunc)
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
+			WithHandlerWithShouldContinueAndShouldReturn(handlerFunc)
 		puller.StartPull(context.Background())
 
 		// wait for all items to be sent to itemChan. (which is picked by puller)
@@ -200,7 +208,8 @@ func TestPuller(t *testing.T) {
 			handledItems[item] = item
 		}
 
-		puller := NewPuller(itemChan).
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
 			WithHandler(handlerFunc).
 			WithHandleAsynchronously()
 
@@ -238,7 +247,8 @@ func TestPuller(t *testing.T) {
 			handledItems[item] = item
 		}
 
-		puller := NewPuller(itemChan).
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
 			WithHandler(handlerFunc).
 			WithHandleAsynchronouslyMaxGoroutine(5)
 
@@ -280,7 +290,8 @@ func TestPuller(t *testing.T) {
 			panicValue = recovered
 		}
 
-		puller := NewPuller(itemChan).
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
 			WithHandler(handlerFunc).
 			WithHandleAsynchronously().
 			WithPanicHandler(panicHandlerFunc)
@@ -322,7 +333,8 @@ func TestPuller(t *testing.T) {
 			handledItems[item] = item
 		}
 
-		puller := NewPuller(itemChan).
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
 			WithHandler(handleFunc).
 			WithHandleAsynchronously()
 
@@ -361,7 +373,8 @@ func TestPuller(t *testing.T) {
 			handledItems[item] = item
 		}
 
-		puller := NewPuller(itemChan).
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
 			WithHandler(handleFunc).
 			WithHandleAsynchronously()
 
@@ -389,7 +402,8 @@ func TestPuller(t *testing.T) {
 
 		handledItems := make([]int, 0)
 
-		puller := NewPuller(itemChan).
+		puller := NewPuller[int]().
+			WithChannel(itemChan).
 			WithHandler(func(item int) {
 				handledItems = append(handledItems, item)
 			})

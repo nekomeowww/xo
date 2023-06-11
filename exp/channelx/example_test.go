@@ -1,284 +1,270 @@
-package channelx
+package channelx_test
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"sync"
-	"time"
+// func ExamplePuller() {
+// 	// Note that itemChan is un-buffered.
+// 	itemChan := make(chan int)
+// 	defer close(itemChan)
 
-	"github.com/sourcegraph/conc"
-	"github.com/sourcegraph/conc/panics"
-)
+// 	wg := conc.NewWaitGroup()
+// 	// Send 10 items to itemChan
+// 	wg.Go(func() {
+// 		for i := 0; i < 10; i++ {
+// 			input := i
+// 			// Since itemChan is un-buffered, this line will block until the item is pulled.
+// 			itemChan <- input
+// 		}
+// 	})
 
-func ExamplePuller() {
-	// Note that itemChan is un-buffered.
-	itemChan := make(chan int)
-	defer close(itemChan)
+// 	handledItems := make([]int, 10)
+// 	handlerFunc := func(item int) {
+// 		// Simulate a time-consuming operation since we want to test
+// 		// the max goroutine and handle the items asynchronously.
+// 		time.Sleep(time.Millisecond * 100)
+// 		// Pump the handled items.
+// 		handledItems[item] = item
+// 	}
 
-	wg := conc.NewWaitGroup()
-	// Send 10 items to itemChan
-	wg.Go(func() {
-		for i := 0; i < 10; i++ {
-			input := i
-			// Since itemChan is un-buffered, this line will block until the item is pulled.
-			itemChan <- input
-		}
-	})
+// 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
+// 	puller := channelx.NewPuller[int]().
+// 		WithChannel(itemChan).
+// 		WithHandler(handlerFunc)
+// 	// Create a new worker pool with the size set the max goroutine to 10 internally
+// 	// to handle the items asynchronously and elegantly.
+// 	// WithHandleAsynchronouslyMaxGoroutine(10)
+// 	// StartPull(context.Background())
 
-	handledItems := make([]int, 10)
-	handlerFunc := func(item int) {
-		// Simulate a time-consuming operation since we want to test
-		// the max goroutine and handle the items asynchronously.
-		time.Sleep(time.Millisecond * 100)
-		// Pump the handled items.
-		handledItems[item] = item
-	}
+// 	// Wait for all items to be sent to itemChan. (which is picked by puller)
+// 	wg.Wait()
+// 	// Wait for the last item to be handled.
+// 	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
 
-	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := NewPuller(itemChan).
-		WithHandler(handlerFunc).
-		// Create a new worker pool with the size set the max goroutine to 10 internally
-		// to handle the items asynchronously and elegantly.
-		WithHandleAsynchronouslyMaxGoroutine(10)
+// 	// Let's print out the handled items.
+// 	fmt.Println(handledItems)
 
-	// Start pulling items from itemChan.
-	puller.StartPull(context.Background())
+// 	// You may want to stop pulling items from itemChan when
+// 	// you don't want to pull items anymore.
+// 	err := puller.StopPull(context.Background())
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	// Wait for all items to be sent to itemChan. (which is picked by puller)
-	wg.Wait()
-	// Wait for the last item to be handled.
-	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
+// 	// Output:
+// 	// [0 1 2 3 4 5 6 7 8 9]
+// }
 
-	// Let's print out the handled items.
-	fmt.Println(handledItems)
+// func ExamplePuller_StartPull() {
+// 	// Note that itemChan is un-buffered.
+// 	itemChan := make(chan int)
+// 	defer close(itemChan)
 
-	// You may want to stop pulling items from itemChan when
-	// you don't want to pull items anymore.
-	err := puller.StopPull(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
+// 	wg := conc.NewWaitGroup()
+// 	// Send 10 items to itemChan
+// 	wg.Go(func() {
+// 		for i := 0; i < 10; i++ {
+// 			input := i
+// 			// Since itemChan is un-buffered, this line will block until the item is pulled.
+// 			itemChan <- input
+// 		}
+// 	})
 
-	// Output:
-	// [0 1 2 3 4 5 6 7 8 9]
-}
+// 	var handledItemsMutex sync.Mutex
+// 	handledItems := make([]int, 0)
+// 	handlerFunc := func(item int) {
+// 		handledItemsMutex.Lock()
+// 		defer handledItemsMutex.Unlock()
 
-func ExamplePuller_StartPull() {
-	// Note that itemChan is un-buffered.
-	itemChan := make(chan int)
-	defer close(itemChan)
+// 		handledItems = append(handledItems, item)
+// 	}
 
-	wg := conc.NewWaitGroup()
-	// Send 10 items to itemChan
-	wg.Go(func() {
-		for i := 0; i < 10; i++ {
-			input := i
-			// Since itemChan is un-buffered, this line will block until the item is pulled.
-			itemChan <- input
-		}
-	})
+// 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
+// 	puller := channelx.NewPuller[int]().
+// 		WithChannel(itemChan).
+// 		WithHandler(handlerFunc).
+// 		StartPull(context.Background())
 
-	var handledItemsMutex sync.Mutex
-	handledItems := make([]int, 0)
-	handlerFunc := func(item int) {
-		handledItemsMutex.Lock()
-		defer handledItemsMutex.Unlock()
+// 	// Wait for all items to be sent to itemChan (which is picked by puller).
+// 	wg.Wait()
+// 	// Wait for the last item to be handled.
+// 	time.Sleep(time.Millisecond)
 
-		handledItems = append(handledItems, item)
-	}
+// 	// Let's print out the handled items.
+// 	// Since we didn't specify the puller to handle items asynchronously,
+// 	// the handled items should be in order just the same as the items sent to itemChan
+// 	// even though we use `append(...)` to modify the slice.
+// 	fmt.Println(handledItems)
 
-	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := NewPuller(itemChan).WithHandler(handlerFunc)
-	// Start pulling items from itemChan.
-	puller.StartPull(context.Background())
+// 	// You may want to stop pulling items from itemChan when
+// 	// you don't want to pull items anymore.
+// 	err := puller.StopPull(context.Background())
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	// Wait for all items to be sent to itemChan (which is picked by puller).
-	wg.Wait()
-	// Wait for the last item to be handled.
-	time.Sleep(time.Millisecond)
+// 	// Output:
+// 	// [0 1 2 3 4 5 6 7 8 9]
+// }
 
-	// Let's print out the handled items.
-	// Since we didn't specify the puller to handle items asynchronously,
-	// the handled items should be in order just the same as the items sent to itemChan
-	// even though we use `append(...)` to modify the slice.
-	fmt.Println(handledItems)
+// func ExamplePuller_WithHandleAsynchronouslyMaxGoroutine() {
+// 	// Note that itemChan is un-buffered.
+// 	itemChan := make(chan int)
+// 	defer close(itemChan)
 
-	// You may want to stop pulling items from itemChan when
-	// you don't want to pull items anymore.
-	err := puller.StopPull(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
+// 	wg := conc.NewWaitGroup()
+// 	// Send 10 items to itemChan
+// 	wg.Go(func() {
+// 		for i := 0; i < 10; i++ {
+// 			input := i
+// 			// Since itemChan is un-buffered, this line will block until the item is pulled.
+// 			itemChan <- input
+// 		}
+// 	})
 
-	// Output:
-	// [0 1 2 3 4 5 6 7 8 9]
-}
+// 	handledItems := make([]int, 10)
+// 	handlerFunc := func(item int) {
+// 		// Simulate a time-consuming operation since we want to test
+// 		// the max goroutine and handle the items asynchronously.
+// 		time.Sleep(time.Millisecond * 100)
+// 		// Pump the handled items.
+// 		handledItems[item] = item
+// 	}
 
-func ExamplePuller_WithHandleAsynchronouslyMaxGoroutine() {
-	// Note that itemChan is un-buffered.
-	itemChan := make(chan int)
-	defer close(itemChan)
+// 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
+// 	puller := channelx.NewPuller[int]().
+// 		WithChannel(itemChan).
+// 		WithHandler(handlerFunc).
+// 		// Create a new worker pool with the size set the max goroutine to 10 internally
+// 		// to handle the items asynchronously and elegantly.
+// 		WithHandleAsynchronouslyMaxGoroutine(10).
+// 		StartPull(context.Background())
 
-	wg := conc.NewWaitGroup()
-	// Send 10 items to itemChan
-	wg.Go(func() {
-		for i := 0; i < 10; i++ {
-			input := i
-			// Since itemChan is un-buffered, this line will block until the item is pulled.
-			itemChan <- input
-		}
-	})
+// 	// Wait for all items to be sent to itemChan. (which is picked by puller)
+// 	wg.Wait()
+// 	// Wait for the last item to be handled.
+// 	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
 
-	handledItems := make([]int, 10)
-	handlerFunc := func(item int) {
-		// Simulate a time-consuming operation since we want to test
-		// the max goroutine and handle the items asynchronously.
-		time.Sleep(time.Millisecond * 100)
-		// Pump the handled items.
-		handledItems[item] = item
-	}
+// 	// Let's print out the handled items.
+// 	fmt.Println(handledItems)
 
-	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := NewPuller(itemChan).
-		WithHandler(handlerFunc).
-		// Create a new worker pool with the size set the max goroutine to 10 internally
-		// to handle the items asynchronously and elegantly.
-		WithHandleAsynchronouslyMaxGoroutine(10)
+// 	// You may want to stop pulling items from itemChan when
+// 	// you don't want to pull items anymore.
+// 	err := puller.StopPull(context.Background())
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	// Start pulling items from itemChan.
-	puller.StartPull(context.Background())
+// 	// Output:
+// 	// [0 1 2 3 4 5 6 7 8 9]
+// }
 
-	// Wait for all items to be sent to itemChan. (which is picked by puller)
-	wg.Wait()
-	// Wait for the last item to be handled.
-	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
+// func ExamplePuller_WithHandleAsynchronously() {
+// 	// Note that itemChan is un-buffered.
+// 	itemChan := make(chan int)
+// 	defer close(itemChan)
 
-	// Let's print out the handled items.
-	fmt.Println(handledItems)
+// 	wg := conc.NewWaitGroup()
+// 	// Send 10 items to itemChan
+// 	wg.Go(func() {
+// 		for i := 0; i < 10; i++ {
+// 			input := i
+// 			// Since itemChan is un-buffered, this line will block until the item is pulled.
+// 			itemChan <- input
+// 		}
+// 	})
 
-	// You may want to stop pulling items from itemChan when
-	// you don't want to pull items anymore.
-	err := puller.StopPull(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
+// 	handledItems := make([]int, 10)
+// 	handlerFunc := func(item int) {
+// 		// Simulate a time-consuming operation since we want to test
+// 		// the max goroutine and handle the items asynchronously.
+// 		time.Sleep(time.Millisecond * 100)
+// 		// Pump the handled items.
+// 		handledItems[item] = item
+// 	}
 
-	// Output:
-	// [0 1 2 3 4 5 6 7 8 9]
-}
+// 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
+// 	puller := channelx.NewPuller[int]().
+// 		WithChannel(itemChan).
+// 		WithHandler(handlerFunc).
+// 		// Handle the items asynchronously without a worker pool.
+// 		WithHandleAsynchronously().
+// 		StartPull(context.Background())
 
-func ExamplePuller_WithHandleAsynchronously() {
-	// Note that itemChan is un-buffered.
-	itemChan := make(chan int)
-	defer close(itemChan)
+// 	// Wait for all items to be sent to itemChan. (which is picked by puller)
+// 	wg.Wait()
+// 	// Wait for the last item to be handled.
+// 	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
 
-	wg := conc.NewWaitGroup()
-	// Send 10 items to itemChan
-	wg.Go(func() {
-		for i := 0; i < 10; i++ {
-			input := i
-			// Since itemChan is un-buffered, this line will block until the item is pulled.
-			itemChan <- input
-		}
-	})
+// 	// Let's print out the handled items.
+// 	fmt.Println(handledItems)
 
-	handledItems := make([]int, 10)
-	handlerFunc := func(item int) {
-		// Simulate a time-consuming operation since we want to test
-		// the max goroutine and handle the items asynchronously.
-		time.Sleep(time.Millisecond * 100)
-		// Pump the handled items.
-		handledItems[item] = item
-	}
+// 	// You may want to stop pulling items from itemChan when
+// 	// you don't want to pull items anymore.
+// 	err := puller.StopPull(context.Background())
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := NewPuller(itemChan).
-		WithHandler(handlerFunc).
-		// Handle the items asynchronously without a worker pool.
-		WithHandleAsynchronously()
+// 	// Output:
+// 	// [0 1 2 3 4 5 6 7 8 9]
+// }
 
-	// Start pulling items from itemChan.
-	puller.StartPull(context.Background())
+// func ExamplePuller_WithPanicHandler() {
+// 	// Note that itemChan is un-buffered.
+// 	itemChan := make(chan int)
+// 	defer close(itemChan)
 
-	// Wait for all items to be sent to itemChan. (which is picked by puller)
-	wg.Wait()
-	// Wait for the last item to be handled.
-	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
+// 	wg := conc.NewWaitGroup()
+// 	// Send 10 items to itemChan
+// 	wg.Go(func() {
+// 		for i := 0; i < 10; i++ {
+// 			input := i
+// 			// Since itemChan is un-buffered, this line will block until the item is pulled.
+// 			itemChan <- input
+// 		}
+// 	})
 
-	// Let's print out the handled items.
-	fmt.Println(handledItems)
+// 	handledItems := make([]int, 10)
+// 	handlerFunc := func(item int) {
+// 		if item == 9 {
+// 			panic("panicked on item 9")
+// 		}
 
-	// You may want to stop pulling items from itemChan when
-	// you don't want to pull items anymore.
-	err := puller.StopPull(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
+// 		// Simulate a time-consuming operation since we want to test
+// 		// the max goroutine and handle the items asynchronously.
+// 		time.Sleep(time.Millisecond * 100)
+// 		// Pump the handled items.
+// 		handledItems[item] = item
+// 	}
 
-	// Output:
-	// [0 1 2 3 4 5 6 7 8 9]
-}
+// 	panicHandlerFunc := func(panicValue *panics.Recovered) {
+// 		fmt.Println(panicValue.Value)
+// 	}
 
-func ExamplePuller_WithPanicHandler() {
-	// Note that itemChan is un-buffered.
-	itemChan := make(chan int)
-	defer close(itemChan)
+// 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
+// 	puller := channelx.NewPuller[int]().
+// 		WithChannel(itemChan).
+// 		WithHandler(handlerFunc).
+// 		// Assign panicHandlerFunc to handle the panic.
+// 		WithPanicHandler(panicHandlerFunc).
+// 		// Handle the items asynchronously without a worker pool.
+// 		WithHandleAsynchronously().
+// 		StartPull(context.Background())
 
-	wg := conc.NewWaitGroup()
-	// Send 10 items to itemChan
-	wg.Go(func() {
-		for i := 0; i < 10; i++ {
-			input := i
-			// Since itemChan is un-buffered, this line will block until the item is pulled.
-			itemChan <- input
-		}
-	})
+// 	// Wait for all items to be sent to itemChan. (which is picked by puller)
+// 	wg.Wait()
+// 	// Wait for the last item to be handled.
+// 	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
 
-	handledItems := make([]int, 10)
-	handlerFunc := func(item int) {
-		if item == 9 {
-			panic("panicked on item 9")
-		}
+// 	// Let's print out the handled items.
+// 	fmt.Println(handledItems)
 
-		// Simulate a time-consuming operation since we want to test
-		// the max goroutine and handle the items asynchronously.
-		time.Sleep(time.Millisecond * 100)
-		// Pump the handled items.
-		handledItems[item] = item
-	}
+// 	// You may want to stop pulling items from itemChan when
+// 	// you don't want to pull items anymore.
+// 	err := puller.StopPull(context.Background())
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	panicHandlerFunc := func(panicValue *panics.Recovered) {
-		fmt.Println(panicValue.Value)
-	}
-
-	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := NewPuller(itemChan).
-		WithHandler(handlerFunc).
-		// Assign panicHandlerFunc to handle the panic.
-		WithPanicHandler(panicHandlerFunc).
-		// Handle the items asynchronously without a worker pool.
-		WithHandleAsynchronously()
-
-	// Start pulling items from itemChan.
-	puller.StartPull(context.Background())
-
-	// Wait for all items to be sent to itemChan. (which is picked by puller)
-	wg.Wait()
-	// Wait for the last item to be handled.
-	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
-
-	// Let's print out the handled items.
-	fmt.Println(handledItems)
-
-	// You may want to stop pulling items from itemChan when
-	// you don't want to pull items anymore.
-	err := puller.StopPull(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Output:
-	// panicked on item 9
-	// [0 1 2 3 4 5 6 7 8 0]
-}
+// 	// Output:
+// 	// panicked on item 9
+// 	// [0 1 2 3 4 5 6 7 8 0]
+// }
