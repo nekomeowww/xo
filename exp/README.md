@@ -12,4 +12,4 @@ GoDoc: [https://godoc.org/github.com/nekomeowww/xo/exp](https://godoc.org/github
 
 Channel helpers:
 
-- [`channelx.Puller`](https://pkg.go.dev/github.com/nekomeowww/xo@v1.0.0/exp/channelx#Puller)
+- [`channelx.ChannelPuller`](https://pkg.go.dev/github.com/nekomeowww/xo@v1.0.0/exp/channelx#ChannelPuller)

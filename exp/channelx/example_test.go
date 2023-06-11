@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sourcegraph/conc"
+	"github.com/sourcegraph/conc/panics"
 )
 
 func ExamplePuller() {
@@ -35,7 +36,7 @@ func ExamplePuller() {
 	}
 
 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := New(itemChan).
+	puller := NewPuller(itemChan).
 		WithHandler(handlerFunc).
 		// Create a new worker pool with the size set the max goroutine to 10 internally
 		// to handle the items asynchronously and elegantly.
@@ -88,7 +89,7 @@ func ExamplePuller_StartPull() {
 	}
 
 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := New(itemChan).WithHandler(handlerFunc)
+	puller := NewPuller(itemChan).WithHandler(handlerFunc)
 	// Start pulling items from itemChan.
 	puller.StartPull(context.Background())
 
@@ -139,7 +140,7 @@ func ExamplePuller_WithHandleAsynchronouslyMaxGoroutine() {
 	}
 
 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := New(itemChan).
+	puller := NewPuller(itemChan).
 		WithHandler(handlerFunc).
 		// Create a new worker pool with the size set the max goroutine to 10 internally
 		// to handle the items asynchronously and elegantly.
@@ -192,7 +193,7 @@ func ExamplePuller_WithHandleAsynchronously() {
 	}
 
 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
-	puller := New(itemChan).
+	puller := NewPuller(itemChan).
 		WithHandler(handlerFunc).
 		// Handle the items asynchronously without a worker pool.
 		WithHandleAsynchronously()
@@ -217,4 +218,67 @@ func ExamplePuller_WithHandleAsynchronously() {
 
 	// Output:
 	// [0 1 2 3 4 5 6 7 8 9]
+}
+
+func ExamplePuller_WithPanicHandler() {
+	// Note that itemChan is un-buffered.
+	itemChan := make(chan int)
+	defer close(itemChan)
+
+	wg := conc.NewWaitGroup()
+	// Send 10 items to itemChan
+	wg.Go(func() {
+		for i := 0; i < 10; i++ {
+			input := i
+			// Since itemChan is un-buffered, this line will block until the item is pulled.
+			itemChan <- input
+		}
+	})
+
+	handledItems := make([]int, 10)
+	handlerFunc := func(item int) {
+		if item == 9 {
+			panic("panicked on item 9")
+		}
+
+		// Simulate a time-consuming operation since we want to test
+		// the max goroutine and handle the items asynchronously.
+		time.Sleep(time.Millisecond * 100)
+		// Pump the handled items.
+		handledItems[item] = item
+	}
+
+	panicHandlerFunc := func(panicValue *panics.Recovered) {
+		fmt.Println(panicValue.Value)
+	}
+
+	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
+	puller := NewPuller(itemChan).
+		WithHandler(handlerFunc).
+		// Assign panicHandlerFunc to handle the panic.
+		WithPanicHandler(panicHandlerFunc).
+		// Handle the items asynchronously without a worker pool.
+		WithHandleAsynchronously()
+
+	// Start pulling items from itemChan.
+	puller.StartPull(context.Background())
+
+	// Wait for all items to be sent to itemChan. (which is picked by puller)
+	wg.Wait()
+	// Wait for the last item to be handled.
+	time.Sleep(time.Millisecond*100 + time.Millisecond*20)
+
+	// Let's print out the handled items.
+	fmt.Println(handledItems)
+
+	// You may want to stop pulling items from itemChan when
+	// you don't want to pull items anymore.
+	err := puller.StopPull(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Output:
+	// panicked on item 9
+	// [0 1 2 3 4 5 6 7 8 0]
 }
