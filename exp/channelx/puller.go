@@ -8,101 +8,13 @@ import (
 	"github.com/sourcegraph/conc/pool"
 )
 
-type PullerCommonOptions[T any, P Puller[T]] struct {
-	puller *P
-
+// Puller is a generic long-running puller to pull items from a channel.
+type Puller[T any] struct {
 	updateChan                 <-chan T
 	updateHandlerFunc          func(item T) (shouldContinue, shouldReturn bool)
 	updateHandleAsynchronously bool
 	updateHandlePool           *pool.Pool
 	panicHandlerFunc           func(panicValue *panics.Recovered)
-}
-
-// WithChannel assigns channel to pull items from.
-func (o *PullerCommonOptions[T, P]) WithChannel(updateChan <-chan T) *P {
-	o.updateChan = updateChan
-
-	return o.puller
-}
-
-// WithHandler assigns handler to handle the items pulled from the channel.
-func (o *PullerCommonOptions[T, P]) WithHandler(handler func(item T)) *P {
-	o.updateHandlerFunc = func(item T) (bool, bool) {
-		handler(item)
-		return false, false
-	}
-
-	return o.puller
-}
-
-// WithHandlerWithShouldContinue assigns handler to handle the items pulled from the channel but
-// the handler can return a bool to indicate whether the puller should skip the current for loop
-// iteration and continue to move on to the next iteration.
-//
-// NOTICE: If the puller has been set to handle the items asynchronously, therefore the
-// shouldContinue boolean value that the handler returns will be ignored.
-func (o *PullerCommonOptions[T, P]) WithHandlerWithShouldContinue(handler func(item T) bool) *P {
-	o.updateHandlerFunc = func(item T) (bool, bool) {
-		return handler(item), false
-	}
-
-	return o.puller
-}
-
-// WithHandlerWithShouldReturn assigns handler to handle the items pulled from the channel but
-// the handler can return a bool to indicate whether the puller should stop pulling items.
-//
-// NOTICE: If the puller has been set to handle the items asynchronously, therefore the
-// shouldReturn boolean value that the handler returns will be ignored.
-func (o *PullerCommonOptions[T, P]) WithHandlerWithShouldReturn(handler func(item T) bool) *P {
-	o.updateHandlerFunc = func(item T) (bool, bool) {
-		return false, handler(item)
-	}
-
-	return o.puller
-}
-
-// WithHandlerWithShouldContinueAndShouldReturn assigns handler to handle the items pulled from the channel but
-// the handler can return two bool values to indicate whether the puller should stop pulling items and
-// whether the puller should skip the current for loop iteration and continue to move on to the next iteration.
-//
-// NOTICE: If the puller has been set to handle the items asynchronously, therefore the
-// shouldContinue and shouldReturn boolean values that the handler returns will be ignored.
-func (o *PullerCommonOptions[T, P]) WithHandlerWithShouldContinueAndShouldReturn(handler func(item T) (shouldBreak, shouldContinue bool)) *P {
-	o.updateHandlerFunc = handler
-
-	return o.puller
-}
-
-// WithHandleAsynchronously makes the handler to be handled asynchronously.
-func (o *PullerCommonOptions[T, P]) WithHandleAsynchronously() *P {
-	o.updateHandleAsynchronously = true
-
-	return o.puller
-}
-
-// WithHandleAsynchronouslyMaxGoroutine makes the handler to be handled asynchronously with a worker pool that
-// the size of the pool set to maxGoroutine. This is useful when you want to limit the number of goroutines
-// that handle the items to prevent the goroutines from consuming too much memory when lots of items are pumped
-// to the channel (or request).
-func (o *PullerCommonOptions[T, P]) WithHandleAsynchronouslyMaxGoroutine(maxGoroutine int) *P {
-	o.WithHandleAsynchronously()
-
-	o.updateHandlePool = pool.New().WithMaxGoroutines(maxGoroutine)
-
-	return o.puller
-}
-
-// WithPanicHandler assigns panic handler to handle the panic that the handlerFunc panics.
-func (o *PullerCommonOptions[T, P]) WithPanicHandler(handlerFunc func(panicValue *panics.Recovered)) *P {
-	o.panicHandlerFunc = handlerFunc
-
-	return o.puller
-}
-
-// Puller is a generic long-running puller to pull items from a channel.
-type Puller[T any] struct {
-	*PullerCommonOptions[T, Puller[T]]
 
 	alreadyStarted    bool
 	alreadyClosed     bool
@@ -111,10 +23,89 @@ type Puller[T any] struct {
 
 // New creates a new long-running puller to pull items.
 func NewPuller[T any]() *Puller[T] {
-	puller := new(Puller[T])
-	puller.PullerCommonOptions = &PullerCommonOptions[T, Puller[T]]{puller: puller}
+	return new(Puller[T])
+}
 
-	return puller
+// WithChannel assigns channel to pull items from.
+func (p *Puller[T]) WithChannel(updateChan <-chan T) *Puller[T] {
+	p.updateChan = updateChan
+
+	return p
+}
+
+// WithHandler assigns handler to handle the items pulled from the channel.
+func (p *Puller[T]) WithHandler(handler func(item T)) *Puller[T] {
+	p.updateHandlerFunc = func(item T) (bool, bool) {
+		handler(item)
+		return false, false
+	}
+
+	return p
+}
+
+// WithHandlerWithShouldContinue assigns handler to handle the items pulled from the channel but
+// the handler can return a bool to indicate whether the puller should skip the current for loop
+// iteration and continue to move on to the next iteration.
+//
+// NOTICE: If the puller has been set to handle the items asynchronously, therefore the
+// shouldContinue boolean value that the handler returns will be ignored.
+func (p *Puller[T]) WithHandlerWithShouldContinue(handler func(item T) bool) *Puller[T] {
+	p.updateHandlerFunc = func(item T) (bool, bool) {
+		return handler(item), false
+	}
+
+	return p
+}
+
+// WithHandlerWithShouldReturn assigns handler to handle the items pulled from the channel but
+// the handler can return a bool to indicate whether the puller should stop pulling items.
+//
+// NOTICE: If the puller has been set to handle the items asynchronously, therefore the
+// shouldReturn boolean value that the handler returns will be ignored.
+func (p *Puller[T]) WithHandlerWithShouldReturn(handler func(item T) bool) *Puller[T] {
+	p.updateHandlerFunc = func(item T) (bool, bool) {
+		return false, handler(item)
+	}
+
+	return p
+}
+
+// WithHandlerWithShouldContinueAndShouldReturn assigns handler to handle the items pulled from the channel but
+// the handler can return two bool values to indicate whether the puller should stop pulling items and
+// whether the puller should skip the current for loop iteration and continue to move on to the next iteration.
+//
+// NOTICE: If the puller has been set to handle the items asynchronously, therefore the
+// shouldContinue and shouldReturn boolean values that the handler returns will be ignored.
+func (p *Puller[T]) WithHandlerWithShouldContinueAndShouldReturn(handler func(item T) (shouldBreak, shouldContinue bool)) *Puller[T] {
+	p.updateHandlerFunc = handler
+
+	return p
+}
+
+// WithHandleAsynchronously makes the handler to be handled asynchronously.
+func (p *Puller[T]) WithHandleAsynchronously() *Puller[T] {
+	p.updateHandleAsynchronously = true
+
+	return p
+}
+
+// WithHandleAsynchronouslyMaxGoroutine makes the handler to be handled asynchronously with a worker pool that
+// the size of the pool set to maxGoroutine. This is useful when you want to limit the number of goroutines
+// that handle the items to prevent the goroutines from consuming too much memory when lots of items are pumped
+// to the channel (or request).
+func (p *Puller[T]) WithHandleAsynchronouslyMaxGoroutine(maxGoroutine int) *Puller[T] {
+	p.WithHandleAsynchronously()
+
+	p.updateHandlePool = pool.New().WithMaxGoroutines(maxGoroutine)
+
+	return p
+}
+
+// WithPanicHandler assigns panic handler to handle the panic that the handlerFunc panics.
+func (p *Puller[T]) WithPanicHandler(handlerFunc func(panicValue *panics.Recovered)) *Puller[T] {
+	p.panicHandlerFunc = handlerFunc
+
+	return p
 }
 
 // StartPull starts pulling items from the channel. You may pass a context to signal the puller to stop pulling
