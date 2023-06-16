@@ -2,6 +2,7 @@ package channelx
 
 import (
 	"context"
+	"time"
 
 	"github.com/nekomeowww/fo"
 	"github.com/sourcegraph/conc/panics"
@@ -10,7 +11,11 @@ import (
 
 // Puller is a generic long-running puller to pull items from a channel.
 type Puller[T any] struct {
-	updateChan                 <-chan T
+	notifyChan <-chan T
+	tickerChan <-chan time.Time
+	ticker     *time.Ticker
+
+	updateFromFunc             func(time.Time) T
 	updateHandlerFunc          func(item T) (shouldContinue, shouldReturn bool)
 	updateHandleAsynchronously bool
 	updateHandlePool           *pool.Pool
@@ -27,8 +32,25 @@ func NewPuller[T any]() *Puller[T] {
 }
 
 // WithChannel assigns channel to pull items from.
-func (p *Puller[T]) WithChannel(updateChan <-chan T) *Puller[T] {
-	p.updateChan = updateChan
+func (p *Puller[T]) WithNotifyChannel(updateChan <-chan T) *Puller[T] {
+	p.notifyChan = updateChan
+
+	return p
+}
+
+// WithTickerChannel assigns channel to pull items from with a ticker.
+func (p *Puller[T]) WithTickerChannel(tickerChan <-chan time.Time, pullFromFunc func(time.Time) T) *Puller[T] {
+	p.tickerChan = tickerChan
+	p.updateFromFunc = pullFromFunc
+
+	return p
+}
+
+// WithTickerInterval assigns ticker interval to pull items from with a ticker.
+func (p *Puller[T]) WithTickerInterval(interval time.Duration, pullFromFunc func(time.Time) T) *Puller[T] {
+	p.ticker = time.NewTicker(interval)
+	p.tickerChan = p.ticker.C
+	p.updateFromFunc = pullFromFunc
 
 	return p
 }
@@ -116,19 +138,33 @@ func (c *Puller[T]) StartPull(ctx context.Context) *Puller[T] {
 	}
 
 	c.alreadyStarted = true
-	if c.updateChan == nil {
-		c.contextCancelFunc = func() {}
+	if c.tickerChan != nil {
+		c.contextCancelFunc = runWithTicker(
+			ctx,
+			c.updateHandleAsynchronously,
+			c.updateHandlePool,
+			c.tickerChan,
+			c.updateFromFunc,
+			c.updateHandlerFunc,
+			c.panicHandlerFunc,
+		)
+
+		return c
+	}
+	if c.notifyChan != nil {
+		c.contextCancelFunc = run(
+			ctx,
+			c.updateHandleAsynchronously,
+			c.updateHandlePool,
+			c.notifyChan,
+			c.updateHandlerFunc,
+			c.panicHandlerFunc,
+		)
+
 		return c
 	}
 
-	c.contextCancelFunc = run(
-		ctx,
-		c.updateHandleAsynchronously,
-		c.updateHandlePool,
-		c.updateChan,
-		c.updateHandlerFunc,
-		c.panicHandlerFunc,
-	)
+	c.contextCancelFunc = func() {}
 
 	return c
 }
@@ -141,6 +177,9 @@ func (c *Puller[T]) StopPull(ctx context.Context) error {
 	}
 
 	c.alreadyClosed = true
+	if c.ticker != nil {
+		c.ticker.Stop()
+	}
 	if c.contextCancelFunc != nil {
 		return fo.Invoke0(ctx, func() error {
 			c.contextCancelFunc()
@@ -193,7 +232,7 @@ func run[T any](
 	ctx context.Context,
 	updateHandleAsynchronously bool,
 	updateHandlePool *pool.Pool,
-	channel <-chan T,
+	notifyChannel <-chan T,
 	handlerFunc func(item T) (shouldContinue, shouldBreak bool),
 	panicHandlerFunc func(panicValue *panics.Recovered),
 ) context.CancelFunc {
@@ -204,10 +243,49 @@ func run[T any](
 			select {
 			case <-ctx.Done():
 				return
-			case item, ok := <-channel:
+			case item, ok := <-notifyChannel:
 				if !ok {
 					break
 				}
+
+				shouldContinue, shouldReturn := runHandle( //nolint: staticcheck
+					item,
+					updateHandleAsynchronously,
+					updateHandlePool,
+					handlerFunc,
+					panicHandlerFunc,
+				)
+				if shouldReturn {
+					return
+				}
+				if shouldContinue {
+					continue
+				}
+			}
+		}
+	}()
+
+	return cancel
+}
+
+func runWithTicker[T any](
+	ctx context.Context,
+	updateHandleAsynchronously bool,
+	updateHandlePool *pool.Pool,
+	tickerChannel <-chan time.Time,
+	fromFunc func(time.Time) T,
+	handlerFunc func(item T) (shouldContinue, shouldBreak bool),
+	panicHandlerFunc func(panicValue *panics.Recovered),
+) context.CancelFunc {
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tickerChannel:
+				item := fromFunc(time.Now())
 
 				shouldContinue, shouldReturn := runHandle( //nolint: staticcheck
 					item,

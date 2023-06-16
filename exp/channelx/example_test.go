@@ -36,7 +36,7 @@ func ExamplePuller() {
 
 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
 	puller := channelx.NewPuller[int]().
-		WithChannel(itemChan).
+		WithNotifyChannel(itemChan).
 		WithHandler(handlerFunc).
 		// Create a new worker pool with the size set the max goroutine to 10 internally
 		// to handle the items asynchronously and elegantly.
@@ -88,7 +88,7 @@ func ExamplePuller() {
 
 // 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
 // 	puller := channelx.NewPuller[int]().
-// 		WithChannel(itemChan).
+// 		WithNotifyChannel(itemChan).
 // 		WithHandler(handlerFunc).
 // 		StartPull(context.Background())
 
@@ -140,7 +140,7 @@ func ExamplePuller() {
 
 // 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
 // 	puller := channelx.NewPuller[int]().
-// 		WithChannel(itemChan).
+// 		WithNotifyChannel(itemChan).
 // 		WithHandler(handlerFunc).
 // 		// Create a new worker pool with the size set the max goroutine to 10 internally
 // 		// to handle the items asynchronously and elegantly.
@@ -192,7 +192,7 @@ func ExamplePuller() {
 
 // 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
 // 	puller := channelx.NewPuller[int]().
-// 		WithChannel(itemChan).
+// 		WithNotifyChannel(itemChan).
 // 		WithHandler(handlerFunc).
 // 		// Handle the items asynchronously without a worker pool.
 // 		WithHandleAsynchronously().
@@ -251,7 +251,7 @@ func ExamplePuller() {
 
 // 	// Create a puller to pull items from itemChan and assign handlerFunc to handle the items.
 // 	puller := channelx.NewPuller[int]().
-// 		WithChannel(itemChan).
+// 		WithNotifyChannel(itemChan).
 // 		WithHandler(handlerFunc).
 // 		// Assign panicHandlerFunc to handle the panic.
 // 		WithPanicHandler(panicHandlerFunc).
