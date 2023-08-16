@@ -43,7 +43,7 @@ func (f *LogFileFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	keys := make([]string, 0, len(data))
 
 	for k := range data {
-		if k == "file" {
+		if k == "caller_file" {
 			continue
 		}
 
@@ -95,8 +95,9 @@ func (f *LogFileFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	prefixStr += renderFunc("[", entry.Level.String(), "]")
 
 	b.WriteString(prefixStr)
-	if data["file"] != nil {
-		b.WriteString(fmt.Sprintf(" [%s]", data["file"]))
+
+	if data["caller_file"] != nil {
+		b.WriteString(fmt.Sprintf(" [%s]", data["caller_file"]))
 		delete(data, "file")
 	} else if entry.Context != nil {
 		caller, _ := entry.Context.Value(runtimeCaller).(*runtime.Frame)

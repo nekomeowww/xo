@@ -220,6 +220,25 @@ func zapCoreLevelToLogrusLevel(level zapcore.Level) logrus.Level {
 	}
 }
 
+func ReadLogLevelFromEnv() (zapcore.Level, error) {
+	logLevelStr := os.Getenv("LOG_LEVEL")
+	if logLevelStr == "" {
+		return zapcore.InfoLevel, nil
+	}
+
+	logLevel, err := zapcore.ParseLevel(logLevelStr)
+	if err != nil {
+		logLevel = zapcore.InfoLevel
+		return logLevel, fmt.Errorf("log level " + logLevelStr + " in environment variable LOG_LEVEL is invalid, fallbacks to default level: info")
+	}
+	if logLevel == zapcore.FatalLevel {
+		logLevel = zapcore.InfoLevel
+		return logLevel, fmt.Errorf("log level fatal in environment variable LOG_LEVEL is invalid, fallbacks to default level: info")
+	}
+
+	return logLevel, nil
+}
+
 // NewLogger 按需创建 logger 实例。
 func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook []logrus.Hook) (*Logger, error) {
 	var err error
@@ -260,9 +279,9 @@ func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook [
 		namespace:    namespace,
 	}
 
-	l.Info("logger init success for both logrus and zap",
-		zap.String("logFilePath", logFilePath),
-		zap.String("current_level", level.String()),
+	l.Debug("logger init successfully for both logrus and zap",
+		zap.String("log_file_path", logFilePath),
+		zap.String("log_level", level.String()),
 	)
 
 	return l, nil
