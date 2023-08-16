@@ -688,7 +688,7 @@ func TestPuller_WithTickerChannel(t *testing.T) {
 		puller.StartPull(context.Background())
 
 		// wait for the last item to be handled.
-		time.Sleep(time.Millisecond)
+		time.Sleep(time.Millisecond * 15)
 
 		err := puller.StopPull(context.Background())
 		require.NoError(t, err)
@@ -697,6 +697,6 @@ func TestPuller_WithTickerChannel(t *testing.T) {
 		assert.Equal(t, "panic", panicValue.Value)
 
 		funcObj := runtime.FuncForPC(panicValue.Callers[2])
-		assert.Equal(t, "github.com/nekomeowww/xo/exp/channelx.TestPuller.func8.2", funcObj.Name())
+		assert.Equal(t, "github.com/nekomeowww/xo/exp/channelx.TestPuller_WithTickerChannel.func8.1", funcObj.Name())
 	})
 }

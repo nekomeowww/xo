@@ -8,7 +8,6 @@ linters:
     - staticcheck
     - typecheck
     - unused
-
     - bodyclose # due to https://github.com/golangci/golangci-lint/issues/3086#issuecomment-1475232706
     - containedctx
     - dupl
@@ -39,8 +38,6 @@ linters:
     - usestdlibvars
     - whitespace
     - wsl
-  disable:
-    - depguard
 
 linters-settings:
   wsl:
@@ -62,4 +59,3 @@ issues:
     - path: example_.*\.go
       linters:
         - dupl
-
