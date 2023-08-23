@@ -84,7 +84,7 @@ func (f ZapField) MatchValue() any {
 }
 
 type Logger struct {
-	LogrusLogger *logrus.Logger
+	LogrusLogger *logrus.Entry
 	ZapLogger    *zap.Logger
 
 	namespace string
@@ -94,8 +94,17 @@ type Logger struct {
 func (l *Logger) Debug(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Debug(msg, fields...)
 
-	entry := logrus.NewEntry(l.LogrusLogger)
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
+
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
 	SetCallFrame(entry, l.namespace, 1)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
 
 	for _, v := range fields {
 		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
@@ -108,8 +117,17 @@ func (l *Logger) Debug(msg string, fields ...zapcore.Field) {
 func (l *Logger) Info(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Info(msg, fields...)
 
-	entry := logrus.NewEntry(l.LogrusLogger)
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
+
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
 	SetCallFrame(entry, l.namespace, 1)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
 
 	for _, v := range fields {
 		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
@@ -122,8 +140,17 @@ func (l *Logger) Info(msg string, fields ...zapcore.Field) {
 func (l *Logger) Warn(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Warn(msg, fields...)
 
-	entry := logrus.NewEntry(l.LogrusLogger)
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
+
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
 	SetCallFrame(entry, l.namespace, 1)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
 
 	for _, v := range fields {
 		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
@@ -136,8 +163,17 @@ func (l *Logger) Warn(msg string, fields ...zapcore.Field) {
 func (l *Logger) Error(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Error(msg, fields...)
 
-	entry := logrus.NewEntry(l.LogrusLogger)
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
+
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
 	SetCallFrame(entry, l.namespace, 1)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
 
 	for _, v := range fields {
 		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
@@ -147,17 +183,54 @@ func (l *Logger) Error(msg string, fields ...zapcore.Field) {
 }
 
 // Fatal 打印致命错误日志，打印后立即退出程序。
+//
+// NOTICE: 该方法会调用 os.Exit(1) 退出程序。而且会优先执行 logrus 的 Fatal 方法，然后再执行 zap 的 Fatal 方法。
 func (l *Logger) Fatal(msg string, fields ...zapcore.Field) {
-	l.ZapLogger.Fatal(msg, fields...)
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
 
-	entry := logrus.NewEntry(l.LogrusLogger)
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
 	SetCallFrame(entry, l.namespace, 1)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
 
 	for _, v := range fields {
 		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
 	}
 
 	entry.Fatal(msg)
+	l.ZapLogger.Fatal(msg, fields...)
+}
+
+// With 创建一个新的 logger 实例，该实例会继承当前 logger 的上下文信息。
+// 添加到新 logger 实例的字段，不会影响当前 logger 实例。
+func (l *Logger) With(fields ...zapcore.Field) *Logger {
+	newZapLogger := l.ZapLogger.With(fields...)
+
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
+
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
+	SetCallFrame(entry, l.namespace, 1)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
+
+	for _, v := range fields {
+		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
+	}
+
+	return &Logger{
+		ZapLogger:    newZapLogger,
+		LogrusLogger: entry,
+	}
 }
 
 // SetCallFrame 设定调用栈。
@@ -242,8 +315,8 @@ func ReadLogLevelFromEnv() (zapcore.Level, error) {
 // NewLogger 按需创建 logger 实例。
 func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook []logrus.Hook) (*Logger, error) {
 	var err error
-	if logFilePath == "" {
-		logFilePath, err = autoCreateLogFile(logFilePath)
+	if logFilePath != "" {
+		err = autoCreateLogFile(logFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -251,10 +324,13 @@ func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook [
 
 	config := zap.NewProductionConfig()
 	config.Level = zap.NewAtomicLevelAt(level)
-	config.OutputPaths = []string{logFilePath}
-	config.ErrorOutputPaths = []string{logFilePath}
 	config.InitialFields = map[string]interface{}{
 		"app_name": namespace,
+	}
+
+	if logFilePath != "" {
+		config.OutputPaths = []string{logFilePath}
+		config.ErrorOutputPaths = []string{logFilePath}
 	}
 
 	zapLogger, err := config.Build(zap.WithCaller(true))
@@ -274,7 +350,7 @@ func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook [
 	logrusLogger.Level = zapCoreLevelToLogrusLevel(level)
 
 	l := &Logger{
-		LogrusLogger: logrusLogger,
+		LogrusLogger: logrus.NewEntry(logrusLogger),
 		ZapLogger:    zapLogger,
 		namespace:    namespace,
 	}
@@ -287,38 +363,39 @@ func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook [
 	return l, nil
 }
 
-func autoCreateLogFile(logFilePathStr string) (string, error) {
-	if logFilePathStr != "" {
-		return logFilePathStr, nil
+func autoCreateLogFile(logFilePathStr string) error {
+	if logFilePathStr == "" {
+		return nil
 	}
 
-	execPath, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
+	logDir := filepath.Dir(logFilePathStr)
 
-	logDir := filepath.Join(filepath.Dir(execPath), "logs")
-	logFilePath := filepath.Join(logDir, "insights-bot.log")
-
-	err = os.MkdirAll(logDir, 0744)
-	if err != nil {
-		return "", fmt.Errorf("failed to create %s directory: %w", logDir, err)
-	}
-
-	stat, err := os.Stat(logFilePath)
+	_, err := os.Stat(logDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			_, err2 := os.Create(logFilePath)
+			err2 := os.MkdirAll(logDir, 0755)
 			if err2 != nil {
-				return "", fmt.Errorf("failed to create %s log file: %w", logFilePath, err)
+				return fmt.Errorf("failed to create %s log directory: %w", logDir, err)
 			}
 		} else {
-			return "", err
+			return err
+		}
+	}
+
+	stat, err := os.Stat(logFilePathStr)
+	if err != nil {
+		if os.IsNotExist(err) {
+			_, err2 := os.Create(logFilePathStr)
+			if err2 != nil {
+				return fmt.Errorf("failed to create %s log file: %w", logFilePathStr, err)
+			}
+		} else {
+			return err
 		}
 	}
 	if stat != nil && stat.IsDir() {
-		return "", errors.New("path exists but it is a directory")
+		return errors.New("path exists but it is a directory")
 	}
 
-	return logFilePath, nil
+	return nil
 }
