@@ -23,3 +23,33 @@ func ReadFileAsBytesBuffer(path string) (*bytes.Buffer, error) {
 
 	return buf, nil
 }
+
+type NopIoWriter struct{}
+type EmptyIoWriter = NopIoWriter
+
+func NewNopIoWriter() *NopIoWriter {
+	return &NopIoWriter{}
+}
+
+func NewEmptyIoWriter() *NopIoWriter {
+	return &NopIoWriter{}
+}
+
+func (w *NopIoWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+type NopIoReader struct{}
+type EmptyIoReader = NopIoReader
+
+func NewNopIoReader() *NopIoReader {
+	return &NopIoReader{}
+}
+
+func NewEmptyIoReader() *NopIoReader {
+	return &NopIoReader{}
+}
+
+func (r *NopIoReader) Read(p []byte) (n int, err error) {
+	return 0, io.EOF
+}
