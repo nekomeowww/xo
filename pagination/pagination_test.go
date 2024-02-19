@@ -70,7 +70,9 @@ func TestLogically(t *testing.T) {
 		type T struct {
 			ID string
 		}
+
 		list := make([]*T, 100)
+
 		for i := range list {
 			list[i] = &T{
 				ID: fmt.Sprintf("%d", i),

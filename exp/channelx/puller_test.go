@@ -83,6 +83,7 @@ func TestPuller_WithNotifyChannel(t *testing.T) {
 		handlerFunc := func(item int) (shouldReturn bool) {
 			time.Sleep(time.Millisecond * 100)
 			handledItems[item] = item
+
 			return item == 4
 		}
 
@@ -125,6 +126,7 @@ func TestPuller_WithNotifyChannel(t *testing.T) {
 
 			time.Sleep(time.Millisecond * 100)
 			handledItems[item] = item
+
 			return false
 		}
 
@@ -168,6 +170,7 @@ func TestPuller_WithNotifyChannel(t *testing.T) {
 
 			time.Sleep(time.Millisecond * 100)
 			handledItems[item] = item
+
 			return false, item == 7 // stop at 7
 		}
 
@@ -253,6 +256,7 @@ func TestPuller_WithNotifyChannel(t *testing.T) {
 			WithHandleAsynchronouslyMaxGoroutine(5)
 
 		now := time.Now()
+
 		puller.StartPull(context.Background())
 
 		// wait for all items to be sent to itemChan. (which is picked by puller)
@@ -410,6 +414,7 @@ func TestPuller_WithNotifyChannel(t *testing.T) {
 
 		puller.StartPull(context.Background())
 		puller.contextCancelFunc = nil
+
 		close(itemChan)
 
 		err := puller.StopPull(context.Background())
@@ -484,6 +489,7 @@ func TestPuller_WithTickerChannel(t *testing.T) {
 		handlerFunc := func(item int) (shouldReturn bool) {
 			time.Sleep(time.Millisecond * 100)
 			handledItems[item] = item
+
 			return item == 4
 		}
 
@@ -522,6 +528,7 @@ func TestPuller_WithTickerChannel(t *testing.T) {
 
 			time.Sleep(time.Millisecond * 100)
 			handledItems[item] = item
+
 			return false
 		}
 
@@ -560,6 +567,7 @@ func TestPuller_WithTickerChannel(t *testing.T) {
 
 			time.Sleep(time.Millisecond * 100)
 			handledItems[item] = item
+
 			return false, item == 7 // stop at 7
 		}
 
@@ -643,6 +651,7 @@ func TestPuller_WithTickerChannel(t *testing.T) {
 			WithHandleAsynchronouslyMaxGoroutine(5)
 
 		now := time.Now()
+
 		puller.StartPull(context.Background())
 
 		// wait for the last item to be handled.

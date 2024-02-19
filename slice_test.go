@@ -74,6 +74,7 @@ func TestSliceSlices(t *testing.T) {
 		length = 10
 		result = SliceSlices(s1, length)
 		require.Len(result, 10000/length)
+
 		for _, v := range result {
 			require.Len(v, length)
 		}
@@ -85,11 +86,14 @@ func TestSliceSlices(t *testing.T) {
 
 		length = 100000
 		result = SliceSlices(s1, length)
+
 		actualLength := 10000 / length
 		if actualLength <= 0 {
 			actualLength = 1
 		}
+
 		require.Len(result, actualLength)
+
 		for _, v := range result {
 			require.Len(v, len(s1))
 		}
@@ -149,6 +153,7 @@ func TestSliceSlices(t *testing.T) {
 		length = 10
 		result = SliceSlices(s1, length)
 		require.Len(result, 10000/length)
+
 		for _, v := range result {
 			require.Len(v, length)
 		}
