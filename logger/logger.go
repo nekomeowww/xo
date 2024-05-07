@@ -88,6 +88,7 @@ type Logger struct {
 	ZapLogger    *zap.Logger
 
 	namespace string
+	skip      int
 }
 
 // Debug 打印 debug 级别日志。
@@ -100,7 +101,7 @@ func (l *Logger) Debug(msg string, fields ...zapcore.Field) {
 	}
 
 	entry := logrus.NewEntry(l.LogrusLogger.Logger)
-	SetCallFrame(entry, l.namespace, 1)
+	SetCallFrame(entry, l.namespace, l.skip)
 
 	for k, v := range data {
 		entry = entry.WithField(k, v)
@@ -123,7 +124,7 @@ func (l *Logger) Info(msg string, fields ...zapcore.Field) {
 	}
 
 	entry := logrus.NewEntry(l.LogrusLogger.Logger)
-	SetCallFrame(entry, l.namespace, 1)
+	SetCallFrame(entry, l.namespace, l.skip)
 
 	for k, v := range data {
 		entry = entry.WithField(k, v)
@@ -146,7 +147,7 @@ func (l *Logger) Warn(msg string, fields ...zapcore.Field) {
 	}
 
 	entry := logrus.NewEntry(l.LogrusLogger.Logger)
-	SetCallFrame(entry, l.namespace, 1)
+	SetCallFrame(entry, l.namespace, l.skip)
 
 	for k, v := range data {
 		entry = entry.WithField(k, v)
@@ -169,7 +170,7 @@ func (l *Logger) Error(msg string, fields ...zapcore.Field) {
 	}
 
 	entry := logrus.NewEntry(l.LogrusLogger.Logger)
-	SetCallFrame(entry, l.namespace, 1)
+	SetCallFrame(entry, l.namespace, l.skip)
 
 	for k, v := range data {
 		entry = entry.WithField(k, v)
@@ -192,7 +193,7 @@ func (l *Logger) Fatal(msg string, fields ...zapcore.Field) {
 	}
 
 	entry := logrus.NewEntry(l.LogrusLogger.Logger)
-	SetCallFrame(entry, l.namespace, 1)
+	SetCallFrame(entry, l.namespace, l.skip)
 
 	for k, v := range data {
 		entry = entry.WithField(k, v)
@@ -217,7 +218,7 @@ func (l *Logger) With(fields ...zapcore.Field) *Logger {
 	}
 
 	entry := logrus.NewEntry(l.LogrusLogger.Logger)
-	SetCallFrame(entry, l.namespace, 1)
+	SetCallFrame(entry, l.namespace, l.skip)
 
 	for k, v := range data {
 		entry = entry.WithField(k, v)
@@ -230,6 +231,37 @@ func (l *Logger) With(fields ...zapcore.Field) *Logger {
 	return &Logger{
 		ZapLogger:    newZapLogger,
 		LogrusLogger: entry,
+		namespace:    l.namespace,
+		skip:         l.skip,
+	}
+}
+
+// With 创建一个新的 logger 实例，该实例会继承当前 logger 的上下文信息。
+// 添加到新 logger 实例的字段，不会影响当前 logger 实例。
+func (l *Logger) WithAndSkip(skip int, fields ...zapcore.Field) *Logger {
+	newZapLogger := l.ZapLogger.With(fields...)
+
+	data := make(map[string]any)
+	for k, v := range l.LogrusLogger.Data {
+		data[k] = v
+	}
+
+	entry := logrus.NewEntry(l.LogrusLogger.Logger)
+	SetCallFrame(entry, l.namespace, skip)
+
+	for k, v := range data {
+		entry = entry.WithField(k, v)
+	}
+
+	for _, v := range fields {
+		entry = entry.WithField(v.Key, ZapField(v).MatchValue())
+	}
+
+	return &Logger{
+		ZapLogger:    newZapLogger,
+		LogrusLogger: entry,
+		namespace:    l.namespace,
+		skip:         skip,
 	}
 }
 
@@ -312,25 +344,95 @@ func ReadLogLevelFromEnv() (zapcore.Level, error) {
 	return logLevel, nil
 }
 
+type newLoggerOptions struct {
+	level         zapcore.Level
+	logFilePath   string
+	hook          []logrus.Hook
+	appName       string
+	namespace     string
+	initialFields map[string]any
+	callFrameSkip int
+}
+
+type NewLoggerCallOption func(*newLoggerOptions)
+
+func WithLevel(level zapcore.Level) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.level = level
+	}
+}
+
+func WithLogFilePath(logFilePath string) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.logFilePath = logFilePath
+	}
+}
+
+func WithHook(hook logrus.Hook) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.hook = append(o.hook, hook)
+	}
+}
+
+func WithAppName(appName string) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.appName = appName
+	}
+}
+
+func WithNamespace(namespace string) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.namespace = namespace
+	}
+}
+
+func WithInitialFields(fields map[string]any) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.initialFields = fields
+	}
+}
+
+func WithCallFrameSkip(skip int) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.callFrameSkip = skip
+	}
+}
+
 // NewLogger 按需创建 logger 实例。
-func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook []logrus.Hook) (*Logger, error) {
+func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
+	opts := new(newLoggerOptions)
+	opts.callFrameSkip = 2
+
+	for _, opt := range callOpts {
+		opt(opts)
+	}
+
 	var err error
-	if logFilePath != "" {
-		err = autoCreateLogFile(logFilePath)
+	if opts.logFilePath != "" {
+		err = autoCreateLogFile(opts.logFilePath)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(level)
-	config.InitialFields = map[string]interface{}{
-		"app_name": namespace,
-	}
+	config.Level = zap.NewAtomicLevelAt(opts.level)
 
-	if logFilePath != "" {
-		config.OutputPaths = []string{logFilePath}
-		config.ErrorOutputPaths = []string{logFilePath}
+	config.InitialFields = make(map[string]any)
+	if opts.appName != "" {
+		config.InitialFields["app_name"] = opts.appName
+	}
+	if opts.namespace != "" {
+		config.InitialFields["namespace"] = opts.namespace
+	}
+	if len(opts.initialFields) > 0 {
+		for k, v := range opts.initialFields {
+			config.InitialFields[k] = v
+		}
+	}
+	if opts.logFilePath != "" {
+		config.OutputPaths = []string{opts.logFilePath}
+		config.ErrorOutputPaths = []string{opts.logFilePath}
 	}
 
 	zapLogger, err := config.Build(zap.WithCaller(true))
@@ -339,25 +441,27 @@ func NewLogger(level zapcore.Level, namespace string, logFilePath string, hook [
 	}
 
 	logrusLogger := logrus.New()
-	if len(hook) > 0 {
-		for _, h := range hook {
+
+	if len(opts.hook) > 0 {
+		for _, h := range opts.hook {
 			logrusLogger.Hooks.Add(h)
 		}
 	}
 
 	logrusLogger.SetFormatter(NewLogFileFormatter())
 	logrusLogger.SetReportCaller(true)
-	logrusLogger.Level = zapCoreLevelToLogrusLevel(level)
+	logrusLogger.Level = zapCoreLevelToLogrusLevel(opts.level)
 
 	l := &Logger{
 		LogrusLogger: logrus.NewEntry(logrusLogger),
 		ZapLogger:    zapLogger,
-		namespace:    namespace,
+		namespace:    opts.namespace,
+		skip:         opts.callFrameSkip,
 	}
 
 	l.Debug("logger init successfully for both logrus and zap",
-		zap.String("log_file_path", logFilePath),
-		zap.String("log_level", level.String()),
+		zap.String("log_file_path", opts.logFilePath),
+		zap.String("log_level", opts.level.String()),
 	)
 
 	return l, nil
