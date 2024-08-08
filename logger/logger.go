@@ -345,6 +345,22 @@ func ReadLogLevelFromEnv() (zapcore.Level, error) {
 	return logLevel, nil
 }
 
+func ReadLogFormatFromEnv() (Format, error) {
+	logFormatStr := os.Getenv("LOG_FORMAT")
+	if logFormatStr == "" {
+		return FormatPretty, nil
+	}
+
+	switch logFormatStr {
+	case "json":
+		return FormatJSON, nil
+	case "pretty":
+		return FormatPretty, nil
+	default:
+		return FormatPretty, fmt.Errorf("log format %s in environment variable LOG_FORMAT is invalid, fallbacks to default format: pretty", logFormatStr)
+	}
+}
+
 type newLoggerOptions struct {
 	level         zapcore.Level
 	logFilePath   string
