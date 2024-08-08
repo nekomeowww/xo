@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -352,6 +353,7 @@ type newLoggerOptions struct {
 	namespace     string
 	initialFields map[string]any
 	callFrameSkip int
+	format        Format
 }
 
 type NewLoggerCallOption func(*newLoggerOptions)
@@ -359,6 +361,19 @@ type NewLoggerCallOption func(*newLoggerOptions)
 func WithLevel(level zapcore.Level) NewLoggerCallOption {
 	return func(o *newLoggerOptions) {
 		o.level = level
+	}
+}
+
+type Format string
+
+const (
+	FormatJSON   Format = "json"
+	FormatPretty Format = "pretty"
+)
+
+func WithFormat(format Format) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.format = format
 	}
 }
 
@@ -402,6 +417,7 @@ func WithCallFrameSkip(skip int) NewLoggerCallOption {
 func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 	opts := new(newLoggerOptions)
 	opts.callFrameSkip = 2
+	opts.format = FormatPretty
 
 	for _, opt := range callOpts {
 		opt(opts)
@@ -417,6 +433,22 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 
 	config := zap.NewProductionConfig()
 	config.Level = zap.NewAtomicLevelAt(opts.level)
+	config.EncoderConfig = zapcore.EncoderConfig{
+		TimeKey:        "@timestamp",
+		LevelKey:       "level",
+		MessageKey:     "message",
+		CallerKey:      "caller",
+		FunctionKey:    "function",
+		StacktraceKey:  "stack",
+		NameKey:        "logger",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+		SkipLineEnding: false,
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeDuration: zapcore.MillisDurationEncoder,
+		EncodeName:     zapcore.FullNameEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+	}
 
 	config.InitialFields = make(map[string]any)
 	if opts.appName != "" {
@@ -433,6 +465,14 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 	if opts.logFilePath != "" {
 		config.OutputPaths = []string{opts.logFilePath}
 		config.ErrorOutputPaths = []string{opts.logFilePath}
+	} else {
+		config.OutputPaths = []string{}
+		config.ErrorOutputPaths = []string{}
+
+		if opts.format == FormatJSON {
+			config.OutputPaths = append(config.OutputPaths, "stdout")
+			config.ErrorOutputPaths = append(config.ErrorOutputPaths, "stderr")
+		}
 	}
 
 	zapLogger, err := config.Build(zap.WithCaller(true))
@@ -448,9 +488,14 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 		}
 	}
 
-	logrusLogger.SetFormatter(NewLogFileFormatter())
-	logrusLogger.SetReportCaller(true)
-	logrusLogger.Level = zapCoreLevelToLogrusLevel(opts.level)
+	if opts.format == FormatPretty {
+		logrusLogger.SetFormatter(NewLogPrettyFormatter())
+		logrusLogger.SetOutput(os.Stdout)
+		logrusLogger.SetReportCaller(true)
+		logrusLogger.Level = zapCoreLevelToLogrusLevel(opts.level)
+	} else {
+		logrusLogger.SetOutput(io.Discard)
+	}
 
 	l := &Logger{
 		LogrusLogger: logrus.NewEntry(logrusLogger),

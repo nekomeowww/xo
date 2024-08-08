@@ -84,3 +84,13 @@ func TestWith(t *testing.T) {
 		newLogger.Error("error message with with")
 	})
 }
+
+func TestFormat(t *testing.T) {
+	logger, err := NewLogger(
+		WithFormat(FormatJSON),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, logger)
+
+	logger.Info("info message", zap.String("some_test_field", "some_test_value"))
+}

@@ -1,4 +1,3 @@
-// Package logger 日志包，用于日志输出和打印
 package logger
 
 import (
@@ -12,8 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LogFileFormatter defines the format for log file.
-type LogFileFormatter struct {
+// LogPrettyFormatter defines the format for log file.
+type LogPrettyFormatter struct {
 	logrus.TextFormatter
 	MinimumCallerDepth int
 }
@@ -21,8 +20,8 @@ type LogFileFormatter struct {
 // NewLogFileFormatter return the log format for log file.
 //
 // eg: 2023-06-01T12:00:00 [info] [controllers/some_controller/code_file.go:99] foo key=value
-func NewLogFileFormatter() *LogFileFormatter {
-	return &LogFileFormatter{
+func NewLogPrettyFormatter() *LogPrettyFormatter {
+	return &LogPrettyFormatter{
 		TextFormatter: logrus.TextFormatter{
 			TimestampFormat: time.RFC3339Nano,
 			FullTimestamp:   true,
@@ -34,7 +33,7 @@ func NewLogFileFormatter() *LogFileFormatter {
 // Format renders a single log entry for log file
 //
 // the original file log format is defined here: github.com/sirupsen/logrus/text_formatter.TextFormatter{}.Format().
-func (f *LogFileFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+func (f *LogPrettyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	data := make(map[string]any)
 	for k, v := range entry.Data {
 		data[k] = v
