@@ -86,11 +86,24 @@ func TestWith(t *testing.T) {
 }
 
 func TestFormat(t *testing.T) {
-	logger, err := NewLogger(
-		WithFormat(FormatJSON),
-	)
-	require.NoError(t, err)
-	require.NotNil(t, logger)
+	t.Run("WithLogFilePath", func(t *testing.T) {
+		logger, err := NewLogger(
+			WithFormat(FormatJSON),
+			WithLogFilePath(xo.RelativePathOf("./logs/test.json.log")),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, logger)
 
-	logger.Info("info message", zap.String("some_test_field", "some_test_value"))
+		logger.Info("info message", zap.String("some_test_field", "some_test_value"))
+	})
+
+	t.Run("WithoutLogFilePath", func(t *testing.T) {
+		logger, err := NewLogger(
+			WithFormat(FormatJSON),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, logger)
+
+		logger.Info("info message", zap.String("some_test_field", "some_test_value"))
+	})
 }

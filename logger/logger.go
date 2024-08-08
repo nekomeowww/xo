@@ -481,6 +481,11 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 	if opts.logFilePath != "" {
 		config.OutputPaths = []string{opts.logFilePath}
 		config.ErrorOutputPaths = []string{opts.logFilePath}
+
+		if opts.format == FormatJSON {
+			config.OutputPaths = append(config.OutputPaths, "stdout")
+			config.ErrorOutputPaths = append(config.ErrorOutputPaths, "stderr")
+		}
 	} else {
 		config.OutputPaths = []string{}
 		config.ErrorOutputPaths = []string{}
