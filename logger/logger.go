@@ -241,7 +241,7 @@ func (l *Logger) With(fields ...zapcore.Field) *Logger {
 // With 创建一个新的 logger 实例，该实例会继承当前 logger 的上下文信息。
 // 添加到新 logger 实例的字段，不会影响当前 logger 实例。
 func (l *Logger) WithAndSkip(skip int, fields ...zapcore.Field) *Logger {
-	newZapLogger := l.ZapLogger.With(fields...)
+	newZapLogger := l.ZapLogger.WithOptions(zap.AddCallerSkip(1)).With(fields...)
 
 	data := make(map[string]any)
 	for k, v := range l.LogrusLogger.Data {
