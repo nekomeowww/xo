@@ -471,7 +471,7 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeDuration: zapcore.MillisDurationEncoder,
 		EncodeName:     zapcore.FullNameEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeTime:     zapcore.RFC3339NanoTimeEncoder,
 	}
 
 	config.InitialFields = make(map[string]any)

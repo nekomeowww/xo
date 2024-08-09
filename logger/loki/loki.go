@@ -63,12 +63,12 @@ type stream struct {
 type streamValue []string
 
 type logEntry struct {
-	Level     string  `json:"level"`
-	Timestamp float64 `json:"@timestamp"`
-	Message   string  `json:"message"`
-	Caller    string  `json:"caller"`
-	Function  string  `json:"function"`
-	Stack     string  `json:"stack"`
+	Level     string `json:"level"`
+	Timestamp string `json:"@timestamp"`
+	Message   string `json:"message"`
+	Caller    string `json:"caller"`
+	Function  string `json:"function"`
+	Stack     string `json:"stack"`
 	raw       string
 }
 
@@ -96,7 +96,7 @@ func New(ctx context.Context, cfg Config) ZapLoki {
 func (lp *lokiPusher) Hook(e zapcore.Entry) error {
 	lp.entry <- logEntry{
 		Level:     e.Level.String(),
-		Timestamp: float64(e.Time.UnixMilli()),
+		Timestamp: e.Time.Format(time.RFC3339Nano),
 		Message:   e.Message,
 		Caller:    e.Caller.TrimmedPath(),
 	}
@@ -193,9 +193,18 @@ func (lp *lokiPusher) run() {
 }
 
 func newLog(entry logEntry) streamValue {
-	ts := time.Unix(int64(entry.Timestamp), 0)
-	if ts.UnixNano() == 0 {
+	var ts time.Time
+
+	if entry.Timestamp == "" {
 		ts = time.Now()
+		return []string{strconv.FormatInt(ts.UnixNano(), 10), entry.raw}
+	}
+
+	now, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
+	if err != nil {
+		ts = time.Now()
+	} else {
+		ts = now
 	}
 
 	return []string{strconv.FormatInt(ts.UnixNano(), 10), entry.raw}
