@@ -64,9 +64,11 @@ type streamValue []string
 
 type logEntry struct {
 	Level     string  `json:"level"`
-	Timestamp float64 `json:"ts"`
-	Message   string  `json:"msg"`
+	Timestamp float64 `json:"@timestamp"`
+	Message   string  `json:"message"`
 	Caller    string  `json:"caller"`
+	Function  string  `json:"function"`
+	Stack     string  `json:"stack"`
 	raw       string
 }
 
@@ -192,6 +194,10 @@ func (lp *lokiPusher) run() {
 
 func newLog(entry logEntry) streamValue {
 	ts := time.Unix(int64(entry.Timestamp), 0)
+	if ts.UnixNano() == 0 {
+		ts = time.Now()
+	}
+
 	return []string{strconv.FormatInt(ts.UnixNano(), 10), entry.raw}
 }
 
