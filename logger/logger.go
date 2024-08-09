@@ -512,7 +512,7 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 		}
 
 		loki := loki.New(context.Background(), *opts.lokiRemoteConfig)
-		loki.ApplyConfig(config)
+		config = loki.ApplyConfig(config)
 	}
 
 	zapLogger, err := config.Build(zap.WithCaller(true))
