@@ -6,14 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	zaploki "github.com/paul-milne/zap-loki"
+	"github.com/nekomeowww/xo/logger/loki"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -372,7 +371,7 @@ type newLoggerOptions struct {
 	initialFields    map[string]any
 	callFrameSkip    int
 	format           Format
-	lokiRemoteConfig *zaploki.Config
+	lokiRemoteConfig *loki.Config
 }
 
 type NewLoggerCallOption func(*newLoggerOptions)
@@ -432,7 +431,7 @@ func WithCallFrameSkip(skip int) NewLoggerCallOption {
 	}
 }
 
-func WithLokiRemoteConfig(config *zaploki.Config) NewLoggerCallOption {
+func WithLokiRemoteConfig(config *loki.Config) NewLoggerCallOption {
 	return func(o *newLoggerOptions) {
 		o.lokiRemoteConfig = config
 	}
@@ -512,20 +511,8 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 			opts.lokiRemoteConfig.Labels["namespace"] = opts.namespace
 		}
 
-		loki := zaploki.New(context.Background(), *opts.lokiRemoteConfig)
-
-		err := zap.RegisterSink("loki", loki.Sink)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fullSinkKey := fmt.Sprintf("%s://", "loki")
-
-		if config.OutputPaths == nil {
-			config.OutputPaths = []string{fullSinkKey}
-		} else {
-			config.OutputPaths = append(config.OutputPaths, fullSinkKey)
-		}
+		loki := loki.New(context.Background(), *opts.lokiRemoteConfig)
+		loki.ApplyConfig(config)
 	}
 
 	zapLogger, err := config.Build(zap.WithCaller(true))
