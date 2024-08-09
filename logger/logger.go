@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	zaploki "github.com/paul-milne/zap-loki"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -362,14 +364,15 @@ func ReadLogFormatFromEnv() (Format, error) {
 }
 
 type newLoggerOptions struct {
-	level         zapcore.Level
-	logFilePath   string
-	hook          []logrus.Hook
-	appName       string
-	namespace     string
-	initialFields map[string]any
-	callFrameSkip int
-	format        Format
+	level            zapcore.Level
+	logFilePath      string
+	hook             []logrus.Hook
+	appName          string
+	namespace        string
+	initialFields    map[string]any
+	callFrameSkip    int
+	format           Format
+	lokiRemoteConfig *zaploki.Config
 }
 
 type NewLoggerCallOption func(*newLoggerOptions)
@@ -426,6 +429,12 @@ func WithInitialFields(fields map[string]any) NewLoggerCallOption {
 func WithCallFrameSkip(skip int) NewLoggerCallOption {
 	return func(o *newLoggerOptions) {
 		o.callFrameSkip = skip
+	}
+}
+
+func WithLokiRemoteConfig(config *zaploki.Config) NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.lokiRemoteConfig = config
 	}
 }
 
@@ -493,6 +502,29 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 		if opts.format == FormatJSON {
 			config.OutputPaths = append(config.OutputPaths, "stdout")
 			config.ErrorOutputPaths = append(config.ErrorOutputPaths, "stderr")
+		}
+	}
+	if opts.lokiRemoteConfig != nil {
+		if opts.appName != "" {
+			opts.lokiRemoteConfig.Labels["app_name"] = opts.appName
+		}
+		if opts.namespace != "" {
+			opts.lokiRemoteConfig.Labels["namespace"] = opts.namespace
+		}
+
+		loki := zaploki.New(context.Background(), *opts.lokiRemoteConfig)
+
+		err := zap.RegisterSink("loki", loki.Sink)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fullSinkKey := fmt.Sprintf("%s://", "loki")
+
+		if config.OutputPaths == nil {
+			config.OutputPaths = []string{fullSinkKey}
+		} else {
+			config.OutputPaths = append(config.OutputPaths, fullSinkKey)
 		}
 	}
 

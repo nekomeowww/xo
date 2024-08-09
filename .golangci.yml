@@ -47,6 +47,10 @@ linters-settings:
     rules:
       - name: blank-imports
         disabled: true
+  nestif:
+    # Minimal complexity of if statements to report.
+    # Default: 5
+    min-complexity: 10
 
 issues:
   exclude:
