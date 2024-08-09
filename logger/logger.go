@@ -539,7 +539,7 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 
 	l := &Logger{
 		LogrusLogger: logrus.NewEntry(logrusLogger),
-		ZapLogger:    zapLogger,
+		ZapLogger:    zapLogger.WithOptions(zap.AddCallerSkip(opts.callFrameSkip)),
 		namespace:    opts.namespace,
 		skip:         opts.callFrameSkip,
 	}
