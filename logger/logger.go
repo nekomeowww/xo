@@ -1,4 +1,4 @@
-// Package logger 日志包，用于日志输出和打印
+// Package logger
 package logger
 
 import (
@@ -13,7 +13,13 @@ import (
 	"time"
 
 	"github.com/nekomeowww/xo/logger/loki"
+	"github.com/nekomeowww/xo/logger/otelzap"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -88,12 +94,19 @@ func (f ZapField) MatchValue() any {
 type Logger struct {
 	LogrusLogger *logrus.Entry
 	ZapLogger    *zap.Logger
+	otelTracer   trace.Tracer
 
-	namespace string
-	skip      int
+	withAppendedFields    []zap.Field
+	openTelemetryDisabled bool
+	namespace             string
+	skip                  int
+	errorStatusLevel      zapcore.Level
+	caller                bool
+	stackTrace            bool
 }
 
-// Debug 打印 debug 级别日志。
+// Debug logs a message at DebugLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger.
 func (l *Logger) Debug(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Debug(msg, fields...)
 
@@ -116,7 +129,19 @@ func (l *Logger) Debug(msg string, fields ...zapcore.Field) {
 	entry.Debug(msg)
 }
 
-// Info 打印 info 级别日志。
+// DebugContext logs a message at DebugLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger. Besides that, it
+// also logs the message to the OpenTelemetry span.
+func (l *Logger) DebugContext(ctx context.Context, msg string, fields ...zapcore.Field) {
+	if !l.openTelemetryDisabled {
+		l.span(ctx, zapcore.DebugLevel, msg, fields...)
+	}
+
+	l.Debug(msg, fields...)
+}
+
+// Info logs a message at InfoLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger.
 func (l *Logger) Info(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Info(msg, fields...)
 
@@ -139,7 +164,20 @@ func (l *Logger) Info(msg string, fields ...zapcore.Field) {
 	entry.Info(msg)
 }
 
-// Warn 打印 warn 级别日志。
+// InfoContext logs a message at InfoLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger. Besides that, it
+// also logs the message to the OpenTelemetry span.
+func (l *Logger) InfoContext(ctx context.Context, msg string, fields ...zapcore.Field) {
+	if !l.openTelemetryDisabled {
+		l.span(ctx, zapcore.InfoLevel, msg, fields...)
+	}
+
+	l.Info(msg, fields...)
+}
+
+// Warn logs a message at WarnLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger. Besides that, it
+// also logs the message to the OpenTelemetry span.
 func (l *Logger) Warn(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Warn(msg, fields...)
 
@@ -162,7 +200,19 @@ func (l *Logger) Warn(msg string, fields ...zapcore.Field) {
 	entry.Warn(msg)
 }
 
-// Error 打印错误日志。
+// WarnContext logs a message at WarnLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger. Besides that, it
+// also logs the message to the OpenTelemetry span.
+func (l *Logger) WarnContext(ctx context.Context, msg string, fields ...zapcore.Field) {
+	if !l.openTelemetryDisabled {
+		l.span(ctx, zapcore.WarnLevel, msg, fields...)
+	}
+
+	l.Warn(msg, fields...)
+}
+
+// Error logs a message at ErrorLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger.
 func (l *Logger) Error(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Error(msg, fields...)
 
@@ -185,9 +235,18 @@ func (l *Logger) Error(msg string, fields ...zapcore.Field) {
 	entry.Error(msg)
 }
 
-// Fatal 打印致命错误日志，打印后立即退出程序。
+// ErrorContext logs a message at ErrorLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger. Besides that, it
+// also logs the message to the OpenTelemetry span.
+func (l *Logger) ErrorContext(ctx context.Context, msg string, fields ...zapcore.Field) {
+	l.span(ctx, zapcore.ErrorLevel, msg, fields...)
+	l.Error(msg, fields...)
+}
+
+// Fatal logs a message at FatalLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger.
 //
-// NOTICE: 该方法会调用 os.Exit(1) 退出程序。而且会优先执行 logrus 的 Fatal 方法，然后再执行 zap 的 Fatal 方法。
+// NOTICE: This method calls os.Exit(1) to exit the program. It also prioritizes the execution of logrus' Fatal method over zap's Fatal method.
 func (l *Logger) Fatal(msg string, fields ...zapcore.Field) {
 	data := make(map[string]any)
 	for k, v := range l.LogrusLogger.Data {
@@ -209,8 +268,19 @@ func (l *Logger) Fatal(msg string, fields ...zapcore.Field) {
 	l.ZapLogger.Fatal(msg, fields...)
 }
 
-// With 创建一个新的 logger 实例，该实例会继承当前 logger 的上下文信息。
-// 添加到新 logger 实例的字段，不会影响当前 logger 实例。
+// FatalContext logs a message at FatalLevel. The message includes any fields passed
+// at the log site, as well as any fields accumulated on the logger. Besides that, it
+// also logs the message to the OpenTelemetry span.
+func (l *Logger) FatalContext(ctx context.Context, msg string, fields ...zapcore.Field) {
+	if !l.openTelemetryDisabled {
+		l.span(ctx, zapcore.FatalLevel, msg, fields...)
+	}
+
+	l.Fatal(msg, fields...)
+}
+
+// With creates a new logger instance that inherits the context information from the current logger.
+// Fields added to the new logger instance do not affect the current logger instance.
 func (l *Logger) With(fields ...zapcore.Field) *Logger {
 	newZapLogger := l.ZapLogger.With(fields...)
 
@@ -231,15 +301,18 @@ func (l *Logger) With(fields ...zapcore.Field) *Logger {
 	}
 
 	return &Logger{
-		ZapLogger:    newZapLogger,
-		LogrusLogger: entry,
-		namespace:    l.namespace,
-		skip:         l.skip,
+		ZapLogger:             newZapLogger,
+		withAppendedFields:    append(l.withAppendedFields, fields...),
+		LogrusLogger:          entry,
+		namespace:             l.namespace,
+		skip:                  l.skip,
+		openTelemetryDisabled: l.openTelemetryDisabled,
 	}
 }
 
-// With 创建一个新的 logger 实例，该实例会继承当前 logger 的上下文信息。
-// 添加到新 logger 实例的字段，不会影响当前 logger 实例。
+// WithAndSkip creates a new logger instance that inherits the context information from the current logger.
+// Fields added to the new logger instance do not affect the current logger instance.
+// The skip parameter is used to determine the number of stack frames to skip when retrieving the caller information.
 func (l *Logger) WithAndSkip(skip int, fields ...zapcore.Field) *Logger {
 	newZapLogger := l.ZapLogger.WithOptions(zap.AddCallerSkip(1)).With(fields...)
 
@@ -260,16 +333,60 @@ func (l *Logger) WithAndSkip(skip int, fields ...zapcore.Field) *Logger {
 	}
 
 	return &Logger{
-		ZapLogger:    newZapLogger,
-		LogrusLogger: entry,
-		namespace:    l.namespace,
-		skip:         skip,
+		ZapLogger:             newZapLogger,
+		LogrusLogger:          entry,
+		withAppendedFields:    append(l.withAppendedFields, fields...),
+		namespace:             l.namespace,
+		skip:                  skip,
+		openTelemetryDisabled: l.openTelemetryDisabled,
 	}
 }
 
-// SetCallFrame 设定调用栈。
+func (l *Logger) span(ctx context.Context, lvl zapcore.Level, msg string, fields ...zap.Field) {
+	span := trace.SpanFromContext(ctx)
+
+	if lvl >= l.errorStatusLevel && span.IsRecording() {
+		span.SetStatus(codes.Error, msg)
+	}
+
+	attrs := make([]attribute.KeyValue, 0, len(fields)+3)
+	attrs = append(attrs, semconv.OtelLibraryName("github.com/nekomeowww/xo/logger"))
+	attrs = append(attrs, semconv.OtelLibraryVersion("1.0.0"))
+	attrs = append(attrs, attribute.String("log.severity", otelzap.LogSeverityFromZapLevel(lvl).String()))
+	attrs = append(attrs, attribute.String("log.message", msg))
+
+	for _, field := range l.withAppendedFields {
+		attrs = append(attrs, otelzap.AttributesFromZapField(field)...)
+	}
+
+	for _, field := range fields {
+		attrs = append(attrs, otelzap.AttributesFromZapField(field)...)
+	}
+
+	if l.caller {
+		if fn, file, line, ok := runtime.Caller(l.skip + 1); ok {
+			fn := runtime.FuncForPC(fn).Name()
+			if fn != "" {
+				attrs = append(attrs, attribute.String("code.function", fn))
+			}
+			if file != "" {
+				attrs = append(attrs, attribute.String("code.filepath", file))
+				attrs = append(attrs, attribute.Int("code.lineno", line))
+			}
+		}
+	}
+
+	if l.stackTrace {
+		stackTrace := make([]byte, 2048)
+		n := runtime.Stack(stackTrace, false)
+		attrs = append(attrs, attribute.String("exception.stacktrace", string(stackTrace[:n])))
+	}
+
+	span.AddEvent("log", trace.WithAttributes(attrs...))
+}
+
+// SetCallFrame set the caller information for the log entry.
 func SetCallFrame(entry *logrus.Entry, namespace string, skip int) {
-	// 获取调用栈的 文件、行号
 	_, file, line, _ := runtime.Caller(skip + 1)
 	pc, _, _, _ := runtime.Caller(skip + 2)
 	funcDetail := runtime.FuncForPC(pc)
@@ -288,17 +405,15 @@ const (
 	runtimeCaller contextKey = "ContextKeyRuntimeCaller"
 )
 
-// SetCallerFrameWithFileAndLine 设定调用栈。
+// SetCallerFrameWithFileAndLine set the caller information for the log entry.
 func SetCallerFrameWithFileAndLine(entry *logrus.Entry, namespace, functionName, file string, line int) {
 	splitTarget := filepath.FromSlash("/" + namespace + "/")
-	// 拆解文件名，移除项目所在路径和项目名称，只保留到项目内的文件路径
+
 	filename := strings.SplitN(file, splitTarget, 2)
-	// 如果拆解后出现问题，回退到完整路径
 	if len(filename) < 2 {
 		filename = []string{"", file}
 	}
 
-	// 设定 logrus.Entry 的上下文信息
 	entry.Context = context.WithValue(context.Background(), runtimeCaller, &runtime.Frame{
 		File:     filename[1],
 		Line:     line,
@@ -363,15 +478,16 @@ func ReadLogFormatFromEnv() (Format, error) {
 }
 
 type newLoggerOptions struct {
-	level            zapcore.Level
-	logFilePath      string
-	hook             []logrus.Hook
-	appName          string
-	namespace        string
-	initialFields    map[string]any
-	callFrameSkip    int
-	format           Format
-	lokiRemoteConfig *loki.Config
+	level                 zapcore.Level
+	logFilePath           string
+	hook                  []logrus.Hook
+	appName               string
+	namespace             string
+	initialFields         map[string]any
+	callFrameSkip         int
+	format                Format
+	lokiRemoteConfig      *loki.Config
+	openTelemetryDisabled bool
 }
 
 type NewLoggerCallOption func(*newLoggerOptions)
@@ -434,6 +550,12 @@ func WithCallFrameSkip(skip int) NewLoggerCallOption {
 func WithLokiRemoteConfig(config *loki.Config) NewLoggerCallOption {
 	return func(o *newLoggerOptions) {
 		o.lokiRemoteConfig = config
+	}
+}
+
+func WithOpenTelemetryDisabled() NewLoggerCallOption {
+	return func(o *newLoggerOptions) {
+		o.openTelemetryDisabled = true
 	}
 }
 
@@ -538,10 +660,17 @@ func NewLogger(callOpts ...NewLoggerCallOption) (*Logger, error) {
 	}
 
 	l := &Logger{
-		LogrusLogger: logrus.NewEntry(logrusLogger),
-		ZapLogger:    zapLogger.WithOptions(zap.AddCallerSkip(opts.callFrameSkip - 2)),
-		namespace:    opts.namespace,
-		skip:         opts.callFrameSkip,
+		LogrusLogger:          logrus.NewEntry(logrusLogger),
+		ZapLogger:             zapLogger.WithOptions(zap.AddCallerSkip(opts.callFrameSkip - 2)),
+		namespace:             opts.namespace,
+		skip:                  opts.callFrameSkip,
+		errorStatusLevel:      zapcore.ErrorLevel,
+		caller:                true,
+		stackTrace:            false,
+		openTelemetryDisabled: opts.openTelemetryDisabled,
+	}
+	if !opts.openTelemetryDisabled {
+		l.otelTracer = otel.Tracer("github.com/nekomeowww/xo/logger")
 	}
 
 	l.Debug("logger init successfully for both logrus and zap",
