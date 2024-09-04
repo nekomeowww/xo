@@ -72,6 +72,11 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 				attribute.String(attributeKey(f.Key), fmt.Sprintf("expected fmt.Stringer, got %T, v: %v", f.Interface, f.Interface)),
 			}
 		}
+		if val == nil {
+			return []attribute.KeyValue{
+				attribute.String(attributeKey(f.Key), "<nil>"),
+			}
+		}
 
 		return []attribute.KeyValue{
 			attribute.String(attributeKey(f.Key), val.String()),
@@ -81,6 +86,11 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		if !ok {
 			return []attribute.KeyValue{
 				attribute.String(attributeKey(f.Key), fmt.Sprintf("expected []byte, got %T, v: %v", f.Interface, f.Interface)),
+			}
+		}
+		if val == nil {
+			return []attribute.KeyValue{
+				attribute.String(attributeKey(f.Key), "<empty>"),
 			}
 		}
 
@@ -114,6 +124,11 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		if !ok {
 			return []attribute.KeyValue{attribute.String(attributeKey(f.Key), fmt.Sprintf("expected error, got %T", f.Interface))}
 		}
+		if err == nil {
+			return []attribute.KeyValue{
+				attribute.String(attributeKey(f.Key), "<nil>"),
+			}
+		}
 
 		return []attribute.KeyValue{
 			semconv.ExceptionTypeKey.String(reflect.TypeOf(err).String()),
@@ -121,6 +136,12 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		}
 	case zapcore.ObjectMarshalerType, zapcore.InlineMarshalerType:
 		if marshaler, ok := f.Interface.(zapcore.ObjectMarshaler); ok {
+			if marshaler == nil {
+				return []attribute.KeyValue{
+					attribute.String(attributeKey(f.Key), "<nil>"),
+				}
+			}
+
 			encoder := zapcore.NewMapObjectEncoder()
 			if err := marshaler.MarshalLogObject(encoder); err == nil {
 				return flattenMap(attributeKey(f.Key), encoder.Fields)
@@ -132,6 +153,12 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		}
 	case zapcore.ArrayMarshalerType:
 		if marshaler, ok := f.Interface.(zapcore.ArrayMarshaler); ok {
+			if marshaler == nil {
+				return []attribute.KeyValue{
+					attribute.String(attributeKey(f.Key), "<nil>"),
+				}
+			}
+
 			encoder := NewBufferArrayEncoder()
 			if err := marshaler.MarshalLogArray(encoder); err == nil {
 				return []attribute.KeyValue{
@@ -164,7 +191,11 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 	}
 }
 
-func flattenMap(prefix string, m map[string]interface{}) []attribute.KeyValue {
+func flattenMap(prefix string, m map[string]any) []attribute.KeyValue {
+	if m == nil {
+		return make([]attribute.KeyValue, 0)
+	}
+
 	attrs := make([]attribute.KeyValue, 0, len(m))
 
 	for k, v := range m {
@@ -192,7 +223,11 @@ func flattenMap(prefix string, m map[string]interface{}) []attribute.KeyValue {
 	return attrs
 }
 
-func interfaceSliceToStringSlice(slice []interface{}) []string {
+func interfaceSliceToStringSlice(slice []any) []string {
+	if slice == nil {
+		return make([]string, 0)
+	}
+
 	result := make([]string, len(slice))
 	for i, v := range slice {
 		result[i] = fmt.Sprintf("%v", v)
