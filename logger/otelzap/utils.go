@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/samber/lo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -72,14 +73,14 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 				attribute.String(attributeKey(f.Key), fmt.Sprintf("expected fmt.Stringer, got %T, v: %v", f.Interface, f.Interface)),
 			}
 		}
-		if val == nil {
+		if lo.IsNil(val) {
 			return []attribute.KeyValue{
 				attribute.String(attributeKey(f.Key), "<nil>"),
 			}
 		}
 
 		return []attribute.KeyValue{
-			attribute.String(attributeKey(f.Key), val.String()),
+			attribute.String(attributeKey(f.Key), fmt.Sprint(val)),
 		}
 	case zapcore.BinaryType, zapcore.ByteStringType:
 		val, ok := f.Interface.([]byte)
@@ -88,7 +89,7 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 				attribute.String(attributeKey(f.Key), fmt.Sprintf("expected []byte, got %T, v: %v", f.Interface, f.Interface)),
 			}
 		}
-		if val == nil {
+		if lo.IsNil(val) {
 			return []attribute.KeyValue{
 				attribute.String(attributeKey(f.Key), "<empty>"),
 			}
@@ -124,7 +125,7 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		if !ok {
 			return []attribute.KeyValue{attribute.String(attributeKey(f.Key), fmt.Sprintf("expected error, got %T", f.Interface))}
 		}
-		if err == nil {
+		if lo.IsNil(err) {
 			return []attribute.KeyValue{
 				attribute.String(attributeKey(f.Key), "<nil>"),
 			}
@@ -136,7 +137,7 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		}
 	case zapcore.ObjectMarshalerType, zapcore.InlineMarshalerType:
 		if marshaler, ok := f.Interface.(zapcore.ObjectMarshaler); ok {
-			if marshaler == nil {
+			if lo.IsNil(marshaler) {
 				return []attribute.KeyValue{
 					attribute.String(attributeKey(f.Key), "<nil>"),
 				}
@@ -153,7 +154,7 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		}
 	case zapcore.ArrayMarshalerType:
 		if marshaler, ok := f.Interface.(zapcore.ArrayMarshaler); ok {
-			if marshaler == nil {
+			if lo.IsNil(marshaler) {
 				return []attribute.KeyValue{
 					attribute.String(attributeKey(f.Key), "<nil>"),
 				}

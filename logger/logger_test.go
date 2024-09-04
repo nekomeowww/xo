@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/nekomeowww/xo"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
@@ -166,7 +167,8 @@ func TestOpenTelemetryAndContextual(t *testing.T) {
 		newLogger := logger.With(zap.String("some_test_field", "some_test_value"))
 		require.NotNil(t, newLogger)
 
-		logger.DebugContext(ctx, "debug message")
+		var uuid *uuid.UUID
+		logger.DebugContext(ctx, "debug message", zap.Stringer("uuid", uuid))
 		newLogger.DebugContext(ctx, "debug message with with")
 
 		// End the span and force flush
