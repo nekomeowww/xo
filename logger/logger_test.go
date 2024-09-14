@@ -168,6 +168,7 @@ func TestOpenTelemetryAndContextual(t *testing.T) {
 		require.NotNil(t, newLogger)
 
 		var uuid *uuid.UUID
+
 		logger.DebugContext(ctx, "debug message", zap.Stringer("uuid", uuid))
 		newLogger.DebugContext(ctx, "debug message with with")
 

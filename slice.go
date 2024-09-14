@@ -1,8 +1,6 @@
 package xo
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/samber/lo"
@@ -19,56 +17,57 @@ func ToMap[T any, K comparable](t []T, keyGetter func(T) K) map[K]T {
 
 // Join returns a string contains items joined with sep by using fmt.Sprintf.
 func Join[T any](from []T, sep string) string {
-	strs := make([]string, len(from))
+	slice := make([]string, len(from))
 
 	for i, v := range from {
-		switch val := any(v).(type) {
-		case string:
-			strs[i] = val
-		case fmt.Stringer:
-			strs[i] = val.String()
-		case int:
-			strs[i] = strconv.FormatInt(int64(val), 10)
-		case int8:
-			strs[i] = strconv.FormatInt(int64(val), 10)
-		case int16:
-			strs[i] = strconv.FormatInt(int64(val), 10)
-		case int32:
-			strs[i] = strconv.FormatInt(int64(val), 10)
-		case int64:
-			strs[i] = strconv.FormatInt(val, 10)
-		case uint:
-			strs[i] = strconv.FormatUint(uint64(val), 10)
-		case uint8:
-			strs[i] = strconv.FormatUint(uint64(val), 10)
-		case uint16:
-			strs[i] = strconv.FormatUint(uint64(val), 10)
-		case uint32:
-			strs[i] = strconv.FormatUint(uint64(val), 10)
-		case uint64:
-			strs[i] = strconv.FormatUint(val, 10)
-		case float32:
-			strs[i] = strconv.FormatFloat(float64(val), 'f', -1, 32)
-		case float64:
-			strs[i] = strconv.FormatFloat(val, 'f', -1, 64)
-		case bool:
-			strs[i] = strconv.FormatBool(val)
-		default:
-			strs[i] = fmt.Sprintf("%v", val)
-		}
+		slice[i] = Stringify(v)
 	}
 
-	return strings.Join(strs, sep)
+	return strings.Join(slice, sep)
 }
 
 // JoinWithConverter returns a string contains converted items joined with sep.
+//
+// Deprecated: Use JoinBy instead.
 func JoinWithConverter[T any](from []T, sep string, convertFunc func(item T) string) string {
-	strs := make([]string, len(from))
+	slice := make([]string, len(from))
 	for i, v := range from {
-		strs[i] = convertFunc(v)
+		slice[i] = convertFunc(v)
 	}
 
-	return strings.Join(strs, sep)
+	return strings.Join(slice, sep)
+}
+
+// JoinBy returns a string contains converted items joined with sep.
+func JoinBy[T any](from []T, sep string, convertFunc func(item T) string) string {
+	slice := make([]string, len(from))
+	for i, v := range from {
+		slice[i] = convertFunc(v)
+	}
+
+	return strings.Join(slice, sep)
+}
+
+// MapString returns a new slice contains stringified items.
+func MapString[T any](from []T, sep string) []string {
+	slice := make([]string, len(from))
+
+	for i, v := range from {
+		slice[i] = Stringify(v)
+	}
+
+	return slice
+}
+
+// MapStringBy returns a new slice contains converted items.
+func MapStringBy[T any](from []T, sep string, convertFunc func(item T) string) []string {
+	slice := make([]string, len(from))
+
+	for i, v := range from {
+		slice[i] = convertFunc(v)
+	}
+
+	return slice
 }
 
 // SliceSlices returns a new slice contains slices with maximum length each.
