@@ -36,3 +36,20 @@ func TestIsValidUUID(t *testing.T) {
 	assert.False(IsValidUUID(strErr))
 	assert.False(IsValidUUID(strErr2))
 }
+
+func TestSubstring(t *testing.T) {
+	abc := Substring("abc", 0, 0)
+	assert.Equal(t, "", abc)
+
+	abc = Substring("abc", 0, 1)
+	assert.Equal(t, "a", abc)
+
+	abc = Substring("abc", 0, 2)
+	assert.Equal(t, "ab", abc)
+
+	abc = Substring("abc", 0, 3)
+	assert.Equal(t, "abc", abc)
+
+	abc = Substring("abc", 0, 4)
+	assert.Equal(t, "abc", abc)
+}

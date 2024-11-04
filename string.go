@@ -156,3 +156,23 @@ func Stringify(v any) string {
 		return fmt.Sprintf("%v", val)
 	}
 }
+
+func Substring(str string, start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end < 0 {
+		end = len(str)
+	}
+	if start > len(str) {
+		start = len(str)
+	}
+	if end > len(str) {
+		end = len(str)
+	}
+	if end < start {
+		start, end = end, start
+	}
+
+	return str[start:end]
+}
