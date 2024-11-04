@@ -45,7 +45,7 @@ func ConvertUint64ToDecimalString(amount uint64, prec int) string {
 	}
 
 	float64Number, _ := decimal.
-		NewFromInt(int64(amount)).
+		NewFromUint64(amount).
 		Div(decimal.NewFromInt(100)).
 		Float64()
 

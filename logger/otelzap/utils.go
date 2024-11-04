@@ -56,7 +56,7 @@ func AttributesFromZapField(f zap.Field) []attribute.KeyValue {
 		}
 	case zapcore.Float32Type, zapcore.Float64Type:
 		return []attribute.KeyValue{
-			attribute.Float64(attributeKey(f.Key), math.Float64frombits(uint64(f.Integer))),
+			attribute.Float64(attributeKey(f.Key), math.Float64frombits(uint64(f.Integer))), //nolint
 		}
 	case zapcore.Complex64Type, zapcore.Complex128Type:
 		return []attribute.KeyValue{

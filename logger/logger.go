@@ -451,7 +451,7 @@ func ReadLogLevelFromEnv() (zapcore.Level, error) {
 	logLevel, err := zapcore.ParseLevel(logLevelStr)
 	if err != nil {
 		logLevel = zapcore.InfoLevel
-		return logLevel, fmt.Errorf("log level " + logLevelStr + " in environment variable LOG_LEVEL is invalid, fallbacks to default level: info")
+		return logLevel, errors.New("log level " + logLevelStr + " in environment variable LOG_LEVEL is invalid, fallbacks to default level: info")
 	}
 	if logLevel == zapcore.FatalLevel {
 		logLevel = zapcore.InfoLevel
