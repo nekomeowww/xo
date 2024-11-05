@@ -1,0 +1,29 @@
+syntax = "proto3";
+package testpb;
+
+option go_package = "github.com/nekomeowww/protobufs/testpb"; // golang
+
+message PossibleOne {
+    string property_1 = 1;
+    string property_2 = 2;
+}
+
+message PossibleTwo {
+    bool property_1 = 1;
+    bool property_2 = 2;
+}
+
+message PossibleThree {
+    double property_1 = 1;
+    double property_2 = 2;
+}
+
+message TestMessage {
+    string property_1 = 1;
+    string property_2 = 2;
+    oneof oneof_field {
+        PossibleOne possible_one = 3;
+        PossibleTwo possible_two = 4;
+        PossibleThree possible_three = 5;
+    }
+}

@@ -1,8 +1,11 @@
 module github.com/nekomeowww/xo
 
-go 1.22
+go 1.23.0
+
+toolchain go1.23.2
 
 require (
+	entgo.io/ent v0.14.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.5.4
@@ -19,6 +22,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.29.0
 	go.opentelemetry.io/otel/trace v1.29.0
 	go.uber.org/zap v1.27.0
+	google.golang.org/protobuf v1.35.1
 )
 
 require (
