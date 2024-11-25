@@ -2,7 +2,7 @@ module github.com/nekomeowww/xo
 
 go 1.23.0
 
-toolchain go1.23.2
+toolchain go1.23.3
 
 require (
 	entgo.io/ent v0.14.1
