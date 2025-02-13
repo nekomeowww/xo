@@ -26,6 +26,13 @@ func Join[T any](from []T, sep string) string {
 	return strings.Join(slice, sep)
 }
 
+// Clone returns a new slice contains items cloned from collection.
+func Clone[T any, Slice ~[]T](collection Slice) Slice {
+	return lo.Map(collection, func(item T, _ int) T {
+		return item
+	})
+}
+
 // JoinWithConverter returns a string contains converted items joined with sep.
 //
 // Deprecated: Use JoinBy instead.
