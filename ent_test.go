@@ -20,7 +20,11 @@ func TestProtoValueScanner(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, sql.NullString{}, val)
 
-		value, err := val.(sql.NullString).Value()
+		nullStringValue, ok := val.(sql.NullString)
+		require.True(t, ok)
+		require.False(t, nullStringValue.Valid)
+
+		value, err := nullStringValue.Value()
 		require.NoError(t, err)
 		require.Nil(t, value)
 
@@ -28,7 +32,11 @@ func TestProtoValueScanner(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, pb)
 
-		pb, err = scanner.FromValue(lo.ToPtr(val.(sql.NullString)))
+		nullStringValue, ok = val.(sql.NullString)
+		require.True(t, ok)
+		require.False(t, nullStringValue.Valid)
+
+		pb, err = scanner.FromValue(lo.ToPtr(nullStringValue))
 		require.NoError(t, err)
 		require.Nil(t, pb)
 	})

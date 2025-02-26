@@ -2,14 +2,14 @@ module github.com/nekomeowww/xo
 
 go 1.23.0
 
-toolchain go1.23.5
+toolchain go1.24.0
 
 require (
 	entgo.io/ent v0.14.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.5.4
-	github.com/nekomeowww/fo v1.5.0
+	github.com/nekomeowww/fo v1.5.1
 	github.com/samber/lo v1.49.1
 	github.com/shopspring/decimal v1.4.0
 	github.com/sirupsen/logrus v1.9.3

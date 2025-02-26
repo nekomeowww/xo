@@ -14,7 +14,6 @@ linters:
     - durationcheck
     - errname
     - exhaustive
-    - exportloopref
     - forcetypeassert
     - godot
     - gofmt
@@ -31,7 +30,6 @@ linters:
     - predeclared
     - reassign
     - revive
-    - tenv
     - testableexamples
     - unconvert
     - unparam # due to https://github.com/golangci/golangci-lint/issues/3086#issuecomment-1475232706
