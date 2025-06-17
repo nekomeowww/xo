@@ -125,8 +125,7 @@ func appendKeyValue(b *bytes.Buffer, key string, value interface{}, QuoteEmptyFi
 		b.WriteByte(' ')
 	}
 
-	b.WriteString(key)
-	b.WriteByte('=')
+	b.WriteString(color.FgGray.Render(key + "="))
 	appendValue(b, value, QuoteEmptyFields)
 }
 
