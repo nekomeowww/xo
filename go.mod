@@ -3,7 +3,7 @@ module github.com/nekomeowww/xo
 go 1.24.0
 
 require (
-	entgo.io/ent v0.14.4
+	entgo.io/ent v0.14.5
 	github.com/davecgh/go-spew v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.5.4
