@@ -19,6 +19,7 @@ func TestTee(t *testing.T) {
 
 	// Collect from dst1
 	var got1 []int
+
 	go func() {
 		for v := range dst1 {
 			got1 = append(got1, v)
@@ -27,6 +28,7 @@ func TestTee(t *testing.T) {
 
 	// Collect from dst2
 	var got2 []int
+
 	go func() {
 		for v := range dst2 {
 			got2 = append(got2, v)
