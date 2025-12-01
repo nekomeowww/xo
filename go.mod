@@ -7,7 +7,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/google/uuid v1.6.0
 	github.com/gookit/color v1.6.0
-	github.com/nekomeowww/fo v1.6.0
+	github.com/nekomeowww/fo v1.6.1
 	github.com/samber/lo v1.52.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/sirupsen/logrus v1.9.3
